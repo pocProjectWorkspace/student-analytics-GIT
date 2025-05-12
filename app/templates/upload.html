@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Data - Student Analytics PoC</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background-color: #4361ee;
+            color: white;
+            text-align: center;
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+        .upload-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .upload-card h2 {
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: #4361ee;
+        }
+        .file-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .file-section:last-child {
+            border-bottom: none;
+        }
+        .file-section h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        .file-description {
+            margin-bottom: 1rem;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .file-input-wrap {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+        .file-input {
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+            z-index: 2;
+        }
+        .file-input-label {
+            display: block;
+            padding: 1rem;
+            background-color: #e9ecef;
+            border: 2px dashed #ced4da;
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .file-input-label:hover, .file-input:focus + .file-input-label {
+            background-color: #dae0e5;
+            border-color: #adb5bd;
+        }
+        .file-name {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: #495057;
+            font-weight: bold;
+        }
+        .file-name:empty {
+            display: none;
+        }
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+        .btn-primary {
+            background-color: #4361ee;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #3f37c9;
+        }
+        .btn-primary:disabled {
+            background-color: #a9b6f8;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .message {
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+        }
+        .message-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .sample-section {
+            background-color: #e5eafd;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        .sample-section h2 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #3f37c9;
+        }
+        .sample-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .sample-btn {
+            background-color: #4895ef;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .sample-btn:hover {
+            background-color: #3a75db;
+        }
+        @media (max-width: 600px) {
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Upload Student Data</h1>
+    </header>
+
+    <div class="container">
+        <div class="upload-card">
+            <h2>Upload Data Files</h2>
+            <form id="upload-form" enctype="multipart/form-data">
+                <div class="file-section">
+                    <h3>PASS Assessment Data</h3>
+                    <p class="file-description">
+                        Upload PASS (Pupil Attitudes to Self and School) data in CSV or Excel format.
+                        This file should contain student IDs, names, and percentile scores for PASS factors.
+                    </p>
+                    <div class="file-input-wrap">
+                        <input type="file" id="pass-file" name="pass_file" class="file-input" accept=".csv,.xlsx,.xls">
+                        <label for="pass-file" class="file-input-label" id="pass-file-label">
+                            Choose PASS file or drag and drop
+                        </label>
+                    </div>
+                    <div id="pass-file-name" class="file-name"></div>
+                </div>
+
+                <div class="file-section">
+                    <h3>CAT4 Assessment Data</h3>
+                    <p class="file-description">
+                        Upload CAT4 (Cognitive Abilities Test) data in CSV or Excel format.
+                        This file should contain student IDs, names, and stanine scores for cognitive domains.
+                    </p>
+                    <div class="file-input-wrap">
+                        <input type="file" id="cat4-file" name="cat4_file" class="file-input" accept=".csv,.xlsx,.xls">
+                        <label for="cat4-file" class="file-input-label" id="cat4-file-label">
+                            Choose CAT4 file or drag and drop
+                        </label>
+                    </div>
+                    <div id="cat4-file-name" class="file-name"></div>
+                </div>
+
+                <div class="file-section">
+                    <h3>Academic Performance Data</h3>
+                    <p class="file-description">
+                        Upload internal academic marks data in CSV or Excel format.
+                        This file should contain student IDs, names, and subject marks.
+                    </p>
+                    <div class="file-input-wrap">
+                        <input type="file" id="academic-file" name="academic_file" class="file-input" accept=".csv,.xlsx,.xls">
+                        <label for="academic-file" class="file-input-label" id="academic-file-label">
+                            Choose Academic file or drag and drop
+                        </label>
+                    </div>
+                    <div id="academic-file-name" class="file-name"></div>
+                </div>
+
+                <div id="message-container"></div>
+
+                <div class="btn-group">
+                    <button type="submit" id="submit-btn" class="btn btn-primary" disabled>Process Data</button>
+                    <a href="/" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="sample-section">
+            <h2>Sample Files</h2>
+            <p>
+                Don't have files ready? Download these sample files to test the system:
+            </p>
+            <div class="sample-btns">
+                <button class="sample-btn" id="download-pass-sample">Sample PASS Data</button>
+                <button class="sample-btn" id="download-cat4-sample">Sample CAT4 Data</button>
+                <button class="sample-btn" id="download-academic-sample">Sample Academic Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('upload-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const messageContainer = document.getElementById('message-container');
+            
+            // File input elements
+            const fileInputs = {
+                pass: document.getElementById('pass-file'),
+                cat4: document.getElementById('cat4-file'),
+                academic: document.getElementById('academic-file')
+            };
+            
+            // File name display elements
+            const fileNames = {
+                pass: document.getElementById('pass-file-name'),
+                cat4: document.getElementById('cat4-file-name'),
+                academic: document.getElementById('academic-file-name')
+            };
+            
+            // File input labels
+            const fileLabels = {
+                pass: document.getElementById('pass-file-label'),
+                cat4: document.getElementById('cat4-file-label'),
+                academic: document.getElementById('academic-file-label')
+            };
+            
+            // Handle file selection
+            for (const type in fileInputs) {
+                fileInputs[type].addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        fileNames[type].textContent = file.name;
+                        fileLabels[type].textContent = 'File selected';
+                    } else {
+                        fileNames[type].textContent = '';
+                        fileLabels[type].textContent = `Choose ${type.toUpperCase()} file or drag and drop`;
+                    }
+                    updateSubmitButton();
+                });
+            }
+            
+            // Enable/disable submit button based on file selection
+            function updateSubmitButton() {
+                const hasFile = fileInputs.pass.files.length > 0 || 
+                               fileInputs.cat4.files.length > 0 || 
+                               fileInputs.academic.files.length > 0;
+                submitBtn.disabled = !hasFile;
+            }
+            
+            // Handle form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Show processing message
+                messageContainer.innerHTML = `
+                    <div class="message message-success">
+                        Processing data, please wait...
+                    </div>
+                `;
+                
+                // Disable submit button during processing
+                submitBtn.disabled = true;
+                
+                // Create form data
+                const formData = new FormData(form);
+                
+                // In a real application, this would be an API call
+                // For the PoC, we'll simulate processing
+                setTimeout(function() {
+                    messageContainer.innerHTML = `
+                        <div class="message message-success">
+                            Files processed successfully! Redirecting to dashboard...
+                        </div>
+                    `;
+                    
+                    // Simulate redirection to results page
+                    setTimeout(function() {
+                        window.location.href = '/dashboard';
+                    }, 2000);
+                }, 3000);
+            });
+            
+            // Sample file download buttons
+            document.getElementById('download-pass-sample').addEventListener('click', function() {
+                window.location.href = '/api/sample-data?file=pass';
+            });
+            
+            document.getElementById('download-cat4-sample').addEventListener('click', function() {
+                window.location.href = '/api/sample-data?file=cat4';
+            });
+            
+            document.getElementById('download-academic-sample').addEventListener('click', function() {
+                window.location.href = '/api/sample-data?file=academic';
+            });
+        });
+    </script>
+</body>
+</html>

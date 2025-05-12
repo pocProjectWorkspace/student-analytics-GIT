@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Analytics PoC</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            background-color: #4361ee;
+            color: white;
+            text-align: center;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+        }
+        header p {
+            margin: 0.5rem 0 0;
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #4361ee;
+        }
+        .card p {
+            margin-bottom: 1.5rem;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4361ee;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .btn:hover {
+            background-color: #3f37c9;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .feature-card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+        }
+        .feature-card h3 {
+            margin-top: 0;
+            color: #4361ee;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Student Analytics PoC</h1>
+        <p>AI-driven student analytics and intervention engine</p>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <h2>Welcome to the Student Analytics Platform</h2>
+            <p>
+                This proof-of-concept application enables educators to gain holistic insights into student 
+                performance and wellbeing by analyzing PASS (Pupil Attitudes to Self and School), CAT4 
+                (Cognitive Abilities Test), and internal academic scores.
+            </p>
+            <p>
+                Upload your data files to generate comprehensive reports with recommended 
+                intervention strategies tailored to each student's needs.
+            </p>
+            <a href="/upload" class="btn">Upload Data</a>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <h3>Emotional & Behavioral Analysis</h3>
+                <p>
+                    Identify students at risk in areas such as self-regard, attitude to teachers, work ethic, 
+                    and emotional control based on PASS assessment data.
+                </p>
+            </div>
+            <div class="feature-card">
+                <h3>Cognitive Profile Assessment</h3>
+                <p>
+                    Analyze cognitive strengths and weaknesses across verbal, quantitative, non-verbal, and spatial 
+                    reasoning domains using CAT4 assessment data.
+                </p>
+            </div>
+            <div class="feature-card">
+                <h3>Academic Performance Insights</h3>
+                <p>
+                    Compare academic achievement with cognitive potential to identify underperforming students 
+                    and target appropriate interventions.
+                </p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>How It Works</h2>
+            <p>
+                1. Upload your PASS, CAT4, and academic data files.<br>
+                2. Our AI engine analyzes and triangulates the data.<br>
+                3. View interactive dashboards with grade-level insights.<br>
+                4. Access detailed student profiles with tailored intervention recommendations.<br>
+                5. Generate comprehensive PDF reports for each student.
+            </p>
+            <a href="/upload" class="btn">Get Started</a>
+        </div>
+    </div>
+
+    <footer>
+        <p>Student Analytics PoC &copy; 2025</p>
+    </footer>
+</body>
+</html>
