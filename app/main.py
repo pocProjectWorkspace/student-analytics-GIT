@@ -13,13 +13,11 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-# Import API routes
-from api.routes import router as api_router
-
-# Import database
-from database.database import engine, get_db
-from database.models import Base
-from database.init_db import init_db
+# Fix imports to use the app package prefix
+from app.api.routes import router as api_router
+from app.database.database import engine, get_db
+from app.database.models import Base
+from app.database.init_db import init_db
 
 # Create FastAPI application
 app = FastAPI(
@@ -41,16 +39,18 @@ app.add_middleware(
 )
 
 # Mount static files
-if os.path.exists("static"):
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Setup Jinja2 templates for server-side rendering (optional for API-only mode)
-templates = Jinja2Templates(directory="templates") if os.path.exists("templates") else None
+# Setup Jinja2 templates for server-side rendering
+template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
+templates = Jinja2Templates(directory=template_dir) if os.path.exists(template_dir) else None
 
 # Include API routes
 app.include_router(api_router, prefix=os.getenv("API_PREFIX", "/api"))
 
-# Basic routes for server-side pages (optional if using React frontend)
+# Basic routes for server-side pages
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the home page"""
@@ -74,13 +74,3 @@ async def health_check(db: Session = Depends(get_db)):
         return {"status": "healthy", "database": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "database": str(e)}
-
-# Entry point
-if __name__ == "__main__":
-    import uvicorn
-    
-    # Determine port from environment or use default
-    port = int(os.getenv("PORT", 8000))
-    
-    # Start server
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True if os.getenv("DEBUG", "False").lower() == "true" else False)

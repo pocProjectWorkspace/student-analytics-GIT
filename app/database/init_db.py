@@ -4,8 +4,8 @@ Database initialization script for Student Analytics PoC
 This script creates all necessary database tables.
 """
 
-from .database import engine
-from .models import Base
+from app.database.database import engine
+from app.database.models import Base
 
 def init_db():
     """Initialize the database by creating all tables"""

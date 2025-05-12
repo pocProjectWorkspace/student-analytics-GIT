@@ -12,9 +12,9 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Background
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 
-# Import the analytics engine
-from engine.analytics import StudentAnalyticsEngine
-from reports.generator import StudentReportGenerator
+# Fix imports to use the app package prefix
+from app.engine.analytics import StudentAnalyticsEngine
+from app.reports.generator import StudentReportGenerator
 
 # Create router
 router = APIRouter(tags=["Student Analytics"])

@@ -1,0 +1,252 @@
+/* frontend/src/App.css */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  padding: 20px;
+}
+
+/* Stats overview */
+.stats-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.stat-card h3 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  color: #555;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #4361ee;
+}
+
+/* Heatmap */
+.class-heatmap {
+  margin-top: 20px;
+}
+
+.section-container {
+  margin-bottom: 30px;
+}
+
+.section-container h3 {
+  margin-bottom: 15px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #eee;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 10px;
+}
+
+.student-cell {
+  width: 60px;
+  height: 60px;
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  cursor: pointer;
+}
+
+.student-initials {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: rgba(0,0,0,0.7);
+}
+
+.risk-count {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(0,0,0,0.2);
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 0.7rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Student profile */
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.download-report-btn {
+  background-color: #4361ee;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.profile-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.profile-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.cat4-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.cat4-domain {
+  text-align: center;
+}
+
+.cat4-score {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin: 0 auto 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: white;
+}
+
+.cat4-score.strength {
+  background-color: #66bb6a;
+}
+
+.cat4-score.average {
+  background-color: #42a5f5;
+}
+
+.cat4-score.weakness {
+  background-color: #ef5350;
+}
+
+.fragile-learner-alert {
+  background-color: #ffcdd2;
+  color: #c62828;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 20px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.risk-summary ul {
+  padding-left: 20px;
+}
+
+.risk-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.risk-indicator.at-risk {
+  background-color: #ef5350;
+}
+
+.interventions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.intervention-card {
+  background-color: #f5f5f5;
+  border-radius: 6px;
+  padding: 15px;
+  border-left: 5px solid #9e9e9e;
+}
+
+.intervention-card.priority-high {
+  border-left-color: #ef5350;
+}
+
+.intervention-card.priority-medium {
+  border-left-color: #ff9800;
+}
+
+.intervention-card.priority-low {
+  border-left-color: #4caf50;
+}
+
+.intervention-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+}
+
+.domain, .factor, .priority {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: #e0e0e0;
+}
+
+.priority.high {
+  background-color: #ffcdd2;
+  color: #c62828;
+}
+
+.priority.medium {
+  background-color: #ffe0b2;
+  color: #ef6c00;
+}
+
+.priority.low {
+  background-color: #c8e6c9;
+  color: #2e7d32;
+}
+
+.no-data {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-style: italic;
+}
