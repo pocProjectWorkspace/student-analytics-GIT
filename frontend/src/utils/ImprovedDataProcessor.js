@@ -457,35 +457,35 @@ class ImprovedDataProcessor {
     
     // Process each PASS factor
     for (const [key, value] of Object.entries(factors)) {
-      if (value && value > 0) {
-        // Determine risk level
-        let level;
-        if (value < this.passRiskThreshold) {
-          level = 'at-risk';
-          riskAreas.push({
-            factor: key.replace(/_/g, ' '),
-            percentile: value,
-            level: 'at-risk'
-          });
-        } else if (value >= this.passStrengthThreshold) {
-          level = 'strength';
-          strengthAreas.push({
-            factor: key.replace(/_/g, ' '),
-            percentile: value,
-            level: 'strength'
-          });
-        } else {
-          level = 'balanced';
-        }
-        
-        formattedFactors.push({
-          name: key.replace(/_/g, ' '),
+    if (value && value > 0) {
+      // Determine risk level based on the thresholds from instruction set
+      let level;
+      if (value < 45) {  // Updated threshold from 40 to 45
+        level = 'at-risk';
+        riskAreas.push({
+          factor: key.replace(/_/g, ' '),
           percentile: value,
-          level: level,
-          description: this.passFactorDescriptions[key] || ''
+          level: 'at-risk'
         });
+      } else if (value >= 65) {  // Updated threshold from 70 to 65
+        level = 'strength';
+        strengthAreas.push({
+          factor: key.replace(/_/g, ' '),
+          percentile: value,
+          level: 'strength'
+        });
+      } else {
+        level = 'balanced';
       }
+      
+      formattedFactors.push({
+        name: key.replace(/_/g, ' '),
+        percentile: value,
+        level: level,
+        description: this.passFactorDescriptions[key] || ''
+      });
     }
+  }
     
     // Sort factors by percentile (ascending) so risk areas appear first
     formattedFactors.sort((a, b) => a.percentile - b.percentile);
@@ -527,44 +527,54 @@ class ImprovedDataProcessor {
       { key: 'spatial_reasoning', name: 'Spatial Reasoning' }
     ];
     
+    // Count domains with SAS < 90 for fragile learner identification
+    let weakDomainCount = 0;
+    
     cat4Domains.forEach(domain => {
-      const stanine = student.cat4_data[domain.key];
-      if (stanine && stanine > 0) {
-        // Determine level
-        let level;
-        if (stanine <= this.cat4WeaknessThreshold) {
-          level = 'weakness';
-          weaknessAreas.push({
-            domain: domain.name,
-            stanine: stanine,
-            level: 'weakness'
-          });
-        } else if (stanine >= this.cat4StrengthThreshold) {
-          level = 'strength';
-          strengthAreas.push({
-            domain: domain.name,
-            stanine: stanine,
-            level: 'strength'
-          });
-        } else {
-          level = 'average';
-        }
-        
-        domains.push({
-          name: domain.name,
-          stanine: stanine,
-          level: level,
-          description: this.cat4DomainDescriptions[domain.key] || ''
-        });
+      // Get SAS score (convert stanine to SAS if needed)
+      let sas = student.cat4_data[domain.key];
+      let stanine = this.sasToStanine(sas);
+      
+      // Convert to SAS scale if it's already in stanine (1-9)
+      if (sas >= 1 && sas <= 9) {
+        stanine = sas;
+        sas = this.stanineToSas(stanine);
       }
+      
+      // Determine level based on SAS score using instruction set thresholds
+      let level;
+      if (sas < 90) {
+        level = 'weakness';
+        weakDomainCount++;
+        weaknessAreas.push({
+          domain: domain.name,
+          sas: sas,
+          stanine: stanine,
+          level: 'weakness'
+        });
+      } else if (sas > 110) {
+        level = 'strength';
+        strengthAreas.push({
+          domain: domain.name,
+          sas: sas,
+          stanine: stanine,
+          level: 'strength'
+        });
+      } else {
+        level = 'balanced';
+      }
+      
+      domains.push({
+        name: domain.name,
+        sas: sas,
+        stanine: stanine,
+        level: level,
+        description: this.cat4DomainDescriptions[domain.key] || ''
+      });
     });
     
-    // Sort domains by stanine to put weaknesses first
-    domains.sort((a, b) => a.stanine - b.stanine);
-    
-    // Initially set fragile learner status based on CAT4 weaknesses only
-    // This might be updated later based on triangulation with PASS data
-    const isFragileLearner = weaknessAreas.length >= 2;
+    // Determine fragile learner status based on instruction set
+    const isFragileLearner = weakDomainCount >= 2;
     
     // Calculate cognitive profile based on relative stanine scores
     let cognitiveProfile = 'Balanced';
@@ -584,57 +594,98 @@ class ImprovedDataProcessor {
     };
   }
 
+  // Helper functions for SAS/stanine conversion
+  stanineToSas(stanine) {
+    // Convert stanine (1-9) to SAS (60-140)
+    const sasValues = [74, 81, 88, 96, 103, 112, 119, 127, 141];
+    return sasValues[Math.min(Math.max(stanine - 1, 0), 8)];
+  }
+
+  sasToStanine(sas) {
+    // Convert SAS (60-140) to stanine (1-9)
+    if (sas >= 126) return 9;
+    if (sas >= 119) return 8;
+    if (sas >= 112) return 7;
+    if (sas >= 104) return 6; 
+    if (sas >= 97) return 5;
+    if (sas >= 89) return 4;
+    if (sas >= 82) return 3;
+    if (sas >= 74) return 2;
+    return 1;
+  }
+
   /**
    * Analyze academic data to assess performance
    */
   analyzeAcademicData(student) {
-    if (!student.asset_data) {
-      return { available: false };
-    }
-    
-    const subjects = [];
-    
-    // Process academic subjects
-    for (const [subject, data] of Object.entries(student.asset_data.subjects)) {
-      // Determine level based on stanine
-      let level;
-      if (data.stanine <= this.cat4WeaknessThreshold) {
-        level = 'weakness';
-      } else if (data.stanine >= this.cat4StrengthThreshold) {
-        level = 'strength';
-      } else {
-        level = 'average';
-      }
-      
-      subjects.push({
-        name: subject,
-        mark: data.mark,
-        stanine: data.stanine,
-        level: level,
-        percentile: data.percentile
-      });
-    }
-    
-    // Calculate average academic performance
-    const avgStanine = subjects.length > 0 
-      ? subjects.reduce((sum, subj) => sum + subj.stanine, 0) / subjects.length 
-      : 0;
-    
-    // Academic profile based on average stanine
-    let academicProfile = 'Average';
-    if (avgStanine <= 3.5) {
-      academicProfile = 'Low';
-    } else if (avgStanine >= 6.5) {
-      academicProfile = 'High';
-    }
-    
-    return {
-      available: true,
-      subjects: subjects,
-      averageStanine: avgStanine,
-      academicProfile: academicProfile
-    };
+  if (!student.asset_data) {
+    return { available: false };
   }
+  
+  const subjects = [];
+  
+  // Process academic subjects
+  for (const [subject, data] of Object.entries(student.asset_data.subjects)) {
+    // Ensure we have a stanine value (1-9)
+    let stanine = data.stanine;
+    if (!stanine && data.mark) {
+      // Convert percentage mark to stanine if stanine not provided
+      stanine = this.percentileToStanine(data.mark);
+    }
+    
+    // Determine level based on stanine using instruction set thresholds
+    let level;
+    if (stanine <= 3) {
+      level = 'weakness';
+    } else if (stanine >= 7) {
+      level = 'strength';
+    } else {
+      level = 'balanced';
+    }
+    
+    subjects.push({
+      name: subject,
+      mark: data.mark,
+      stanine: stanine,
+      level: level,
+      percentile: data.percentile
+    });
+  }
+  
+  // Calculate average academic performance
+  const avgStanine = subjects.length > 0 
+    ? subjects.reduce((sum, subj) => sum + subj.stanine, 0) / subjects.length 
+    : 0;
+  
+  // Academic profile based on average stanine
+  let academicProfile = 'Average';
+  if (avgStanine <= 3.5) {
+    academicProfile = 'Low';
+  } else if (avgStanine >= 6.5) {
+    academicProfile = 'High';
+  }
+  
+  return {
+    available: true,
+    subjects: subjects,
+    averageStanine: avgStanine,
+    academicProfile: academicProfile
+  };
+}
+
+// Helper function to convert percentile to stanine
+percentileToStanine(percentile) {
+  // Convert percentage (0-100) to stanine (1-9)
+  if (percentile >= 96) return 9;
+  if (percentile >= 89) return 8;
+  if (percentile >= 77) return 7;
+  if (percentile >= 60) return 6;
+  if (percentile >= 40) return 5;
+  if (percentile >= 23) return 4;
+  if (percentile >= 11) return 3;
+  if (percentile >= 4) return 2;
+  return 1;
+}
 
   /**
    * Compare academic performance with cognitive potential

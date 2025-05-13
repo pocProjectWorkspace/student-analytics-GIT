@@ -515,6 +515,403 @@ class StudentAnalyticsEngine:
         
         return merged
     
+    def triangulate_student_data(self, student_analysis):
+        """
+        Triangulate data from PASS, CAT4, and academic sources to create holistic insights.
+        This method identifies fragile learners and creates a comprehensive view of the student.
+        """
+        # Extract the individual analyses
+        pass_analysis = student_analysis.get('pass_analysis', {'available': False})
+        cat4_analysis = student_analysis.get('cat4_analysis', {'available': False})
+        academic_analysis = student_analysis.get('academic_analysis', {'available': False})
+        
+        # Initialize the triangulated results
+        triangulated_results = {
+            'student_id': student_analysis.get('student_id', 'unknown'),
+            'name': student_analysis.get('name', 'Unknown Student'),
+            'grade': student_analysis.get('grade', 'unknown'),
+            'is_fragile_learner': False,
+            'risk_profile': 'Low',
+            'top_strengths': [],
+            'top_weaknesses': [],
+            'intervention_priorities': [],
+            'learning_profile': {}
+        }
+        
+        # Identify fragile learners based on CAT4 and PASS data
+        # According to the instruction set, a fragile learner has:
+        # 1. Cognitive ability (CAT4 SAS >= 90 in 2+ domains)
+        # 2. Poor attitudes (PASS factors < 45)
+        if cat4_analysis.get('available', False) and pass_analysis.get('available', False):
+            # Check if student has cognitive potential but attitudinal barriers
+            cognitive_potential = False
+            attitudinal_barriers = False
+            
+            # Check for cognitive potential - at least 2 domains with SAS >= 90
+            if cat4_analysis.get('available', False):
+                strong_domains = sum(1 for domain in cat4_analysis.get('domains', {}).values() 
+                                if domain.get('sas', 0) >= 90)
+                cognitive_potential = strong_domains >= 2
+                
+                # Also check if the student is already flagged as a fragile learner
+                if cat4_analysis.get('is_fragile_learner', False):
+                    triangulated_results['is_fragile_learner'] = True
+            
+            # Check for attitudinal barriers - at least 2 PASS factors < 45
+            if pass_analysis.get('available', False):
+                attitudinal_risks = len(pass_analysis.get('risk_areas', []))
+                attitudinal_barriers = attitudinal_risks >= 2
+            
+            # Define fragile learner based on the combination
+            # A true fragile learner has cognitive potential BUT attitudinal barriers
+            if cognitive_potential and attitudinal_barriers:
+                triangulated_results['is_fragile_learner'] = True
+        
+        # Gather top strengths across all assessments
+        top_strengths = []
+        
+        # Add PASS strengths
+        if pass_analysis.get('available', False):
+            for strength in pass_analysis.get('strength_areas', []):
+                top_strengths.append({
+                    'domain': 'PASS',
+                    'factor': strength.get('factor', ''),
+                    'level': strength.get('level', ''),
+                    'value': strength.get('percentile', 0),
+                    'description': f"Strong attitude in {strength.get('factor', '')}"
+                })
+        
+        # Add CAT4 strengths
+        if cat4_analysis.get('available', False):
+            for strength in cat4_analysis.get('strength_areas', []):
+                top_strengths.append({
+                    'domain': 'CAT4',
+                    'factor': strength.get('domain', ''),
+                    'level': strength.get('level', ''),
+                    'value': strength.get('sas', 0),
+                    'description': f"Strong cognitive ability in {strength.get('domain', '')}"
+                })
+        
+        # Add academic strengths
+        if academic_analysis.get('available', False):
+            for subject, data in academic_analysis.get('subjects', {}).items():
+                if data.get('level', '') == 'Strength':
+                    top_strengths.append({
+                        'domain': 'Academic',
+                        'factor': subject,
+                        'level': data.get('level', ''),
+                        'value': data.get('stanine', 0),
+                        'description': f"Strong performance in {subject}"
+                    })
+        
+        # Sort strengths by value (highest first) and take top 5
+        top_strengths.sort(key=lambda x: x['value'], reverse=True)
+        triangulated_results['top_strengths'] = top_strengths[:5]
+        
+        # Gather top weaknesses across all assessments
+        top_weaknesses = []
+        
+        # Add PASS risks
+        if pass_analysis.get('available', False):
+            for risk in pass_analysis.get('risk_areas', []):
+                top_weaknesses.append({
+                    'domain': 'PASS',
+                    'factor': risk.get('factor', ''),
+                    'level': risk.get('level', ''),
+                    'value': risk.get('percentile', 0),
+                    'description': f"At risk attitude in {risk.get('factor', '')}"
+                })
+        
+        # Add CAT4 weaknesses
+        if cat4_analysis.get('available', False):
+            for weakness in cat4_analysis.get('weakness_areas', []):
+                top_weaknesses.append({
+                    'domain': 'CAT4',
+                    'factor': weakness.get('domain', ''),
+                    'level': weakness.get('level', ''),
+                    'value': weakness.get('sas', 0),
+                    'description': f"Cognitive weakness in {weakness.get('domain', '')}"
+                })
+        
+        # Add academic weaknesses
+        if academic_analysis.get('available', False):
+            for subject, data in academic_analysis.get('subjects', {}).items():
+                if data.get('level', '') == 'Weakness':
+                    top_weaknesses.append({
+                        'domain': 'Academic',
+                        'factor': subject,
+                        'level': data.get('level', ''),
+                        'value': data.get('stanine', 0),
+                        'description': f"Struggling in {subject}"
+                    })
+        
+        # Sort weaknesses by value (lowest first) and take top 5
+        top_weaknesses.sort(key=lambda x: x['value'])
+        triangulated_results['top_weaknesses'] = top_weaknesses[:5]
+        
+        # Create a comprehensive learning profile
+        learning_profile = {
+            'cognitive_style': self._determine_cognitive_style(cat4_analysis),
+            'learning_attitudes': self._determine_learning_attitudes(pass_analysis),
+            'academic_performance': self._determine_academic_profile(academic_analysis),
+            'gap_analysis': self._perform_gap_analysis(cat4_analysis, academic_analysis)
+        }
+        triangulated_results['learning_profile'] = learning_profile
+        
+        # Determine overall risk profile
+        risk_score = self._calculate_risk_score(pass_analysis, cat4_analysis, academic_analysis)
+        if risk_score >= 7:
+            triangulated_results['risk_profile'] = 'High'
+        elif risk_score >= 4:
+            triangulated_results['risk_profile'] = 'Medium'
+        else:
+            triangulated_results['risk_profile'] = 'Low'
+        
+        # Determine intervention priorities
+        triangulated_results['intervention_priorities'] = self._determine_intervention_priorities(
+            pass_analysis, cat4_analysis, academic_analysis, triangulated_results['is_fragile_learner']
+        )
+        
+        return triangulated_results
+
+    def _determine_cognitive_style(self, cat4_analysis):
+        """Determine the student's cognitive learning style based on CAT4 results"""
+        if not cat4_analysis.get('available', False):
+            return 'Unknown'
+        
+        domains = cat4_analysis.get('domains', {})
+        
+        # Get stanine values
+        verbal = domains.get('Verbal_Reasoning', {}).get('stanine', 5)
+        quant = domains.get('Quantitative_Reasoning', {}).get('stanine', 5)
+        nonverbal = domains.get('Nonverbal_Reasoning', {}).get('stanine', 5)
+        spatial = domains.get('Spatial_Reasoning', {}).get('stanine', 5)
+        
+        # Determine verbal vs. non-verbal preference
+        verbal_score = verbal + quant
+        nonverbal_score = nonverbal + spatial
+        
+        if verbal_score > nonverbal_score + 2:
+            style = 'Verbal'
+        elif nonverbal_score > verbal_score + 2:
+            style = 'Non-verbal'
+        else:
+            style = 'Balanced'
+        
+        # Additional modifiers
+        if spatial >= 7 and verbal <= 4:
+            style += '/Visual'
+        elif quant >= 7 and spatial <= 4:
+            style += '/Analytical'
+        
+        return style
+
+    def _determine_learning_attitudes(self, pass_analysis):
+        """Determine the student's learning attitudes based on PASS results"""
+        if not pass_analysis.get('available', False):
+            return 'Unknown'
+        
+        factors = pass_analysis.get('factors', {})
+        
+        # Check key attitude factors
+        self_regard = factors.get('Self_Regard', {}).get('percentile', 50)
+        work_ethic = factors.get('General_Work_Ethic', {}).get('percentile', 50)
+        
+        # Determine basic attitude profile
+        if self_regard < 45 and work_ethic < 45:
+            attitude = 'Disengaged'
+        elif self_regard < 45 and work_ethic >= 45:
+            attitude = 'Lacking Confidence'
+        elif self_regard >= 45 and work_ethic < 45:
+            attitude = 'Underachieving'
+        else:
+            attitude = 'Positive'
+        
+        # Add modifiers based on other factors
+        emotional_control = factors.get('Emotional_Control', {}).get('percentile', 50)
+        if emotional_control < 45:
+            attitude += ' with Emotional Barriers'
+        
+        return attitude
+
+    def _determine_academic_profile(self, academic_analysis):
+        """Determine the student's academic profile based on subject performance"""
+        if not academic_analysis.get('available', False):
+            return 'Unknown'
+        
+        subjects = academic_analysis.get('subjects', {})
+        if not subjects:
+            return 'Unknown'
+        
+        # Calculate average stanine across subjects
+        stanines = [data.get('stanine', 5) for data in subjects.values()]
+        avg_stanine = sum(stanines) / len(stanines) if stanines else 5
+        
+        # Determine profile based on average stanine
+        if avg_stanine >= 7:
+            profile = 'High Achieving'
+        elif avg_stanine >= 4:
+            profile = 'Average'
+        else:
+            profile = 'Struggling'
+        
+        # Add subject-specific modifiers
+        strengths = [subject for subject, data in subjects.items() if data.get('level', '') == 'Strength']
+        weaknesses = [subject for subject, data in subjects.items() if data.get('level', '') == 'Weakness']
+        
+        if strengths:
+            profile += f", Strong in {', '.join(strengths[:2])}"
+        if weaknesses:
+            profile += f", Weak in {', '.join(weaknesses[:2])}"
+        
+        return profile
+
+    def _perform_gap_analysis(self, cat4_analysis, academic_analysis):
+        """
+        Analyze the gap between cognitive potential (CAT4) and actual academic performance
+        to identify underachievement or overachievement
+        """
+        if not cat4_analysis.get('available', False) or not academic_analysis.get('available', False):
+            return 'Insufficient data'
+        
+        # Get average CAT4 stanine
+        cat4_domains = cat4_analysis.get('domains', {})
+        cat4_stanines = [domain.get('stanine', 5) for domain in cat4_domains.values()]
+        avg_cat4 = sum(cat4_stanines) / len(cat4_stanines) if cat4_stanines else 5
+        
+        # Get average academic stanine
+        academic_subjects = academic_analysis.get('subjects', {})
+        academic_stanines = [data.get('stanine', 5) for data in academic_subjects.values()]
+        avg_academic = sum(academic_stanines) / len(academic_stanines) if academic_stanines else 5
+        
+        # Calculate the gap
+        gap = avg_academic - avg_cat4
+        
+        # Determine the gap profile
+        if gap >= 1.5:
+            return 'Overachieving - performing better than cognitive profile suggests'
+        elif gap <= -1.5:
+            return 'Underachieving - not reaching cognitive potential'
+        else:
+            return 'Performing as expected - achievement matches cognitive profile'
+
+    def _calculate_risk_score(self, pass_analysis, cat4_analysis, academic_analysis):
+        """Calculate an overall risk score (0-10) based on all data sources"""
+        risk_score = 0
+        
+        # Add points for PASS risks
+        if pass_analysis.get('available', False):
+            risk_areas = pass_analysis.get('risk_areas', [])
+            # Each risk area adds 1 point, up to 3 max
+            risk_score += min(len(risk_areas), 3)
+        
+        # Add points for CAT4 weaknesses and fragile learner status
+        if cat4_analysis.get('available', False):
+            weakness_areas = cat4_analysis.get('weakness_areas', [])
+            # Each weakness adds 0.5 points, up to 2 max
+            risk_score += min(len(weakness_areas) * 0.5, 2)
+            
+            # Fragile learner adds 2 points
+            if cat4_analysis.get('is_fragile_learner', False):
+                risk_score += 2
+        
+        # Add points for academic weaknesses
+        if academic_analysis.get('available', False):
+            academic_subjects = academic_analysis.get('subjects', {})
+            weaknesses = sum(1 for data in academic_subjects.values() if data.get('level', '') == 'Weakness')
+            # Each academic weakness adds 1 point, up to 3 max
+            risk_score += min(weaknesses, 3)
+        
+        return risk_score
+
+    def _determine_intervention_priorities(self, pass_analysis, cat4_analysis, academic_analysis, is_fragile_learner):
+        """
+        Determine intervention priorities based on the instruction set mapping
+        and student's specific needs
+        """
+        priorities = []
+        
+        # Map PASS domains to instruction set P numbers
+        pass_to_p_mapping = {
+            'Self_Regard': 'P3',
+            'Perceived_Learning': 'P1',
+            'Attitude_Teachers': 'P4',
+            'General_Work_Ethic': 'P6',
+            'Confidence_Learning': 'P2',
+            'Preparedness': 'P8',
+            'Emotional_Control': 'P7',
+            'Social_Confidence': 'P9',
+            'Curriculum_Demand': 'P5'
+        }
+        
+        # Check PASS risks and map to interventions according to instruction set
+        if pass_analysis.get('available', False):
+            for risk in pass_analysis.get('risk_areas', []):
+                factor = risk.get('factor', '')
+                p_code = pass_to_p_mapping.get(factor, '')
+                
+                # Apply instruction set mapping logic
+                if p_code in ['P3', 'P7']:
+                    priorities.append({
+                        'domain': 'Emotional',
+                        'focus': 'Self-esteem/confidence building',
+                        'trigger': f"{factor} at risk (score: {risk.get('percentile', 0)})",
+                        'priority': 'High' if risk.get('percentile', 0) < 35 else 'Medium'
+                    })
+                elif p_code in ['P4', 'P6']:
+                    priorities.append({
+                        'domain': 'Behavioral',
+                        'focus': 'Time management / Organization skills',
+                        'trigger': f"{factor} at risk (score: {risk.get('percentile', 0)})",
+                        'priority': 'Medium'
+                    })
+                elif p_code in ['P5', 'P8']:
+                    priorities.append({
+                        'domain': 'Engagement',
+                        'focus': 'Attendance and engagement mentoring',
+                        'trigger': f"{factor} at risk (score: {risk.get('percentile', 0)})",
+                        'priority': 'Medium'
+                    })
+        
+        # Check CAT4 for verbal reasoning weakness
+        if cat4_analysis.get('available', False):
+            verbal_domain = cat4_analysis.get('domains', {}).get('Verbal_Reasoning', {})
+            if verbal_domain.get('sas', 100) < 90:
+                priorities.append({
+                    'domain': 'Cognitive',
+                    'focus': 'Verbal reasoning / reading boosters',
+                    'trigger': f"Verbal Reasoning SAS: {verbal_domain.get('sas', 0)}",
+                    'priority': 'High'
+                })
+        
+        # Add fragile learner intervention
+        if is_fragile_learner:
+            priorities.append({
+                'domain': 'Holistic',
+                'focus': 'Holistic learning support',
+                'trigger': 'Fragile learner (cognitive potential with attitudinal barriers)',
+                'priority': 'High'
+            })
+        
+        # Check academic weaknesses
+        if academic_analysis.get('available', False):
+            academic_subjects = academic_analysis.get('subjects', {})
+            for subject, data in academic_subjects.items():
+                if data.get('level', '') == 'Weakness':
+                    priorities.append({
+                        'domain': 'Academic',
+                        'focus': f'Subject-specific booster modules for {subject}',
+                        'trigger': f"{subject} stanine: {data.get('stanine', 0)}",
+                        'priority': 'High' if data.get('stanine', 0) <= 2 else 'Medium'
+                    })
+        
+        # Sort priorities by priority level (High first)
+        priority_order = {'High': 0, 'Medium': 1, 'Low': 2}
+        priorities.sort(key=lambda x: priority_order.get(x['priority'], 3))
+        
+        return priorities
+
+
     def _analyze_student_data(self, data):
         """Perform comprehensive analysis on student data"""
         results = {
@@ -537,38 +934,46 @@ class StudentAnalyticsEngine:
                 results['grade_level_summary'][str(grade)] = self._compute_grade_summary(grade_data)
         
         return results
-    
+
     def _analyze_individual_student(self, student_data):
         """Analyze data for an individual student"""
         student_id = student_data.get('student_id', 'unknown')
         student_name = student_data.get('student_name', f'Student {student_id}')
         grade = student_data.get('grade', 'unknown')
         
-        analysis = {
+        # Perform individual analyses
+        pass_analysis = self._analyze_pass_data(student_data)
+        cat4_analysis = self._analyze_cat4_data(student_data)
+        academic_analysis = self._analyze_academic_data(student_data)
+        
+        # Create the base student analysis
+        student_analysis = {
             'student_id': student_id,
             'name': student_name,
             'grade': grade,
-            'pass_analysis': self._analyze_pass_data(student_data),
-            'cat4_analysis': self._analyze_cat4_data(student_data),
-            'academic_analysis': self._analyze_academic_data(student_data),
-            'interventions': []
+            'pass_analysis': pass_analysis,
+            'cat4_analysis': cat4_analysis,
+            'academic_analysis': academic_analysis,
         }
         
-        # Generate interventions based on triangulated data
-        analysis['interventions'] = self._recommend_interventions(
-            analysis['pass_analysis'], 
-            analysis['cat4_analysis'], 
-            analysis['academic_analysis']
+        # Perform triangulated analysis
+        triangulated_results = self.triangulate_student_data(student_analysis)
+        student_analysis['triangulated_analysis'] = triangulated_results
+        
+        # Generate interventions
+        student_analysis['interventions'] = self._recommend_interventions(
+            pass_analysis, cat4_analysis, academic_analysis, triangulated_results['is_fragile_learner']
         )
         
-        return analysis
+        return student_analysis
     
     def _analyze_pass_data(self, student_data):
         """Analyze PASS data for a student"""
         # PASS factors to analyze
-        pass_factors = ['Self_Regard', 'Attitude_Teachers', 'General_Work_Ethic', 
-                        'Emotional_Control', 'Social_Confidence', 'Curriculum_Demand']
-        
+        pass_factors = ['Self_Regard', 'Perceived_Learning', 'Attitude_Teachers', 
+                   'General_Work_Ethic', 'Confidence_Learning', 'Preparedness',
+                   'Emotional_Control', 'Social_Confidence', 'Curriculum_Demand']
+    
         # Check if we have PASS data for this student
         if not any(factor in student_data for factor in pass_factors):
             return {
@@ -585,15 +990,15 @@ class StudentAnalyticsEngine:
             if factor in student_data and not pd.isna(student_data[factor]):
                 percentile = float(student_data[factor])
                 
-                # Determine risk level based on percentile
-                if percentile < 40:
+                # Determine risk level based on percentile using instruction set thresholds
+                if percentile < 45:  # Changed from 40 to 45
                     risk_level = 'At Risk'
                     risk_areas.append({
                         'factor': factor,
                         'percentile': percentile,
                         'level': risk_level
                     })
-                elif percentile >= 70:
+                elif percentile >= 65:  # Changed from 70 to 65
                     risk_level = 'Strength'
                     strength_areas.append({
                         'factor': factor,
@@ -615,7 +1020,6 @@ class StudentAnalyticsEngine:
             try:
                 # Prepare feature vector
                 features = [student_data.get(factor, np.nan) for factor in pass_factors]
-                # Replace missing values with median
                 features = [np.nanmedian(features) if pd.isna(x) else x for x in features]
                 
                 # Get prediction and confidence
@@ -641,9 +1045,8 @@ class StudentAnalyticsEngine:
             'strength_areas': strength_areas,
             'prediction': prediction
         }
-    
     def _analyze_cat4_data(self, student_data):
-        """Analyze CAT4 data for a student"""
+        """Analyze CAT4 data for a student according to the instruction set thresholds"""
         # CAT4 domains to analyze
         cat4_domains = ['Verbal_Reasoning', 'Quantitative_Reasoning', 
                         'Nonverbal_Reasoning', 'Spatial_Reasoning']
@@ -660,38 +1063,52 @@ class StudentAnalyticsEngine:
         weakness_areas = []
         strength_areas = []
         
+        # Count domains with SAS < 90 for fragile learner identification
+        weak_domain_count = 0
+        
         for domain in cat4_domains:
             if domain in student_data and not pd.isna(student_data[domain]):
-                stanine = int(student_data[domain])
+                # Check if the value is a stanine (1-9) or SAS (60-140)
+                value = float(student_data[domain])
                 
-                # Determine level based on stanine
-                if stanine <= 3:
+                # Convert to SAS if stanine
+                if 1 <= value <= 9:
+                    stanine = int(value)
+                    sas = self._stanine_to_sas(stanine)
+                else:
+                    sas = value
+                    stanine = self._sas_to_stanine(sas)
+                
+                # Determine level based on SAS using instruction set thresholds
+                if sas < 90:
                     level = 'Weakness'
+                    weak_domain_count += 1
                     weakness_areas.append({
                         'domain': domain,
+                        'sas': sas,
                         'stanine': stanine,
                         'level': level
                     })
-                elif stanine >= 7:
+                elif sas > 110:
                     level = 'Strength'
                     strength_areas.append({
                         'domain': domain,
+                        'sas': sas,
                         'stanine': stanine,
                         'level': level
                     })
                 else:
-                    level = 'Average'
+                    level = 'Balanced'
                 
                 available_domains[domain] = {
+                    'sas': sas,
                     'stanine': stanine,
                     'level': level,
                     'description': self.cat4_descriptions.get(domain, 'No description available.')
                 }
         
-        # Determine if the student is a fragile learner
-        is_fragile = False
-        if len(weakness_areas) >= 2:
-            is_fragile = True
+        # Determine fragile learner status based on instruction set
+        is_fragile = weak_domain_count >= 2
         
         # Return structured analysis
         return {
@@ -701,7 +1118,24 @@ class StudentAnalyticsEngine:
             'strength_areas': strength_areas,
             'is_fragile_learner': is_fragile
         }
-    
+    def _stanine_to_sas(self, stanine):
+        """Convert stanine (1-9) to SAS (60-140)"""
+        sas_values = [74, 81, 88, 96, 103, 112, 119, 127, 141]
+        index = max(0, min(stanine - 1, 8))
+        return sas_values[index]
+
+    def _sas_to_stanine(self, sas):
+        """Convert SAS (60-140) to stanine (1-9)"""
+        if sas >= 126: return 9
+        if sas >= 119: return 8
+        if sas >= 112: return 7
+        if sas >= 104: return 6
+        if sas >= 97: return 5
+        if sas >= 89: return 4
+        if sas >= 82: return 3
+        if sas >= 74: return 2
+        return 1
+
     def _analyze_academic_data(self, student_data):
         """Analyze academic performance data for a student"""
         # Academic subjects to analyze
@@ -724,13 +1158,13 @@ class StudentAnalyticsEngine:
                 # Convert to standardized scale if not already (assuming 1-9 scale)
                 stanine = int(mark) if 1 <= mark <= 9 else self._convert_to_stanine(mark)
                 
-                # Determine level based on stanine
+                # Determine level based on stanine using instruction set thresholds
                 if stanine <= 3:
                     level = 'Weakness'
                 elif stanine >= 7:
                     level = 'Strength'
                 else:
-                    level = 'Average'
+                    level = 'Balanced'
                 
                 # Clean subject name for display
                 subject_name = subject.replace('_Marks', '').replace('_', ' ')
@@ -741,49 +1175,15 @@ class StudentAnalyticsEngine:
                     'level': level
                 }
         
-        # Compare with CAT4 predictions if available
-        cat4_comparison = {}
-        if any(domain in student_data for domain in ['Verbal_Reasoning', 'Quantitative_Reasoning', 
-                                                  'Nonverbal_Reasoning', 'Spatial_Reasoning']):
-            # For English, compare with Verbal Reasoning
-            if 'English' in subject_analysis and 'Verbal_Reasoning' in student_data:
-                cat4_comparison['English'] = self._compare_subject_with_cat4(
-                    subject_analysis['English']['stanine'], 
-                    student_data['Verbal_Reasoning']
-                )
-            
-            # For Math, compare with Quantitative Reasoning
-            if 'Math' in subject_analysis and 'Quantitative_Reasoning' in student_data:
-                cat4_comparison['Math'] = self._compare_subject_with_cat4(
-                    subject_analysis['Math']['stanine'], 
-                    student_data['Quantitative_Reasoning']
-                )
-            
-            # For Science, average of Quantitative and Nonverbal Reasoning
-            if 'Science' in subject_analysis and 'Quantitative_Reasoning' in student_data and 'Nonverbal_Reasoning' in student_data:
-                avg_cat4 = (student_data['Quantitative_Reasoning'] + student_data['Nonverbal_Reasoning']) / 2
-                cat4_comparison['Science'] = self._compare_subject_with_cat4(
-                    subject_analysis['Science']['stanine'], 
-                    avg_cat4
-                )
-            
-            # For Humanities, compare with Verbal Reasoning
-            if 'Humanities' in subject_analysis and 'Verbal_Reasoning' in student_data:
-                cat4_comparison['Humanities'] = self._compare_subject_with_cat4(
-                    subject_analysis['Humanities']['stanine'], 
-                    student_data['Verbal_Reasoning']
-                )
-        
         # Calculate average performance
-        marks = [data['mark'] for data in subject_analysis.values()]
-        average_mark = sum(marks) / len(marks) if marks else None
+        marks = [data['stanine'] for data in subject_analysis.values()]
+        average_stanine = sum(marks) / len(marks) if marks else None
         
         # Return structured analysis
         return {
             'available': True,
             'subjects': subject_analysis,
-            'cat4_comparison': cat4_comparison,
-            'average_mark': average_mark
+            'average_stanine': average_stanine
         }
     
     def _convert_to_stanine(self, mark, min_mark=0, max_mark=100):
