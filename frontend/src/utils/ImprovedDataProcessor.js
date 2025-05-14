@@ -781,337 +781,1864 @@ percentileToStanine(percentile) {
   }
 
   /**
-   * Generate intervention recommendations
-   */
-  generateInterventions(passAnalysis, cat4Analysis, academicAnalysis, isFragileLearner) {
-    const interventions = [];
+ * Generate compound interventions based on combinations of risk factors
+ * This creates more sophisticated intervention strategies when multiple
+ * risk factors are present across different assessment domains
+ */
+generateCompoundInterventions(passAnalysis, cat4Analysis, academicAnalysis, isFragileLearner) {
+  const compoundInterventions = [];
+  
+  // Only proceed if we have data from multiple sources
+  const hasPassData = passAnalysis.available && passAnalysis.riskAreas.length > 0;
+  const hasCat4Data = cat4Analysis.available && cat4Analysis.weaknessAreas.length > 0;
+  const hasAcademicData = academicAnalysis.available;
+  
+  // Check for specific factor combinations that warrant compound interventions
+  
+  // Combination 1: Self-regard issues + Verbal reasoning weakness
+  if (hasPassData && hasCat4Data) {
+    const hasSelfRegardIssue = passAnalysis.riskAreas.some(r => 
+      r.factor.toLowerCase().includes('self regard') || r.factor.toLowerCase().includes('confidence'));
     
-    // PASS-based interventions
-    if (passAnalysis.available) {
-      passAnalysis.riskAreas.forEach(risk => {
-        const factor = risk.factor.toLowerCase();
+    const hasVerbalWeakness = cat4Analysis.weaknessAreas.some(w => 
+      w.domain.toLowerCase().includes('verbal'));
+    
+    if (hasSelfRegardIssue && hasVerbalWeakness) {
+      compoundInterventions.push({
+        domain: 'integrated',
+        factor: 'Self-Regard and Verbal Reasoning',
+        title: 'Confidence Through Language',
+        description: 'Integrated program combining self-esteem building with verbal skills development, using strengths-based literacy activities to build confidence through language mastery.',
+        priority: 'high',
+        impact: 'high'
+      });
+    }
+  }
+  
+  // Combination 2: Emotional control issues + Academic underperformance
+  if (hasPassData && hasAcademicData) {
+    const hasEmotionalIssue = passAnalysis.riskAreas.some(r => 
+      r.factor.toLowerCase().includes('emotional') || r.factor.toLowerCase().includes('attitude'));
+    
+    const hasAcademicUnderperformance = academicAnalysis.subjects.some(s => s.level === 'weakness');
+    
+    if (hasEmotionalIssue && hasAcademicUnderperformance) {
+      compoundInterventions.push({
+        domain: 'integrated',
+        factor: 'Emotional Regulation and Academic Performance',
+        title: 'Emotional Regulation for Academic Success',
+        description: 'Program addressing how emotional states affect learning performance, teaching meta-cognitive strategies to manage emotions during academic challenges.',
+        priority: 'high',
+        impact: 'high'
+      });
+    }
+  }
+  
+  // Combination 3: Work ethic issues + Quantitative reasoning weakness
+  if (hasPassData && hasCat4Data) {
+    const hasWorkEthicIssue = passAnalysis.riskAreas.some(r => 
+      r.factor.toLowerCase().includes('work ethic') || r.factor.toLowerCase().includes('preparedness'));
+    
+    const hasQuantWeakness = cat4Analysis.weaknessAreas.some(w => 
+      w.domain.toLowerCase().includes('quant'));
+    
+    if (hasWorkEthicIssue && hasQuantWeakness) {
+      compoundInterventions.push({
+        domain: 'integrated',
+        factor: 'Work Ethic and Quantitative Reasoning',
+        title: 'Structured Mathematics Mastery',
+        description: 'Program combining organizational skills with mathematical concepts, using structured practice routines and progress tracking to develop both work ethic and quantitative abilities.',
+        priority: 'high',
+        impact: 'medium'
+      });
+    }
+  }
+  
+  // Combination 4: Social confidence issues + Fragile learner status
+  if (hasPassData && isFragileLearner) {
+    const hasSocialIssue = passAnalysis.riskAreas.some(r => 
+      r.factor.toLowerCase().includes('social') || r.factor.toLowerCase().includes('teacher'));
+    
+    if (hasSocialIssue) {
+      compoundInterventions.push({
+        domain: 'integrated',
+        factor: 'Social Confidence and Learning Resilience',
+        title: 'Collaborative Learning Community',
+        description: 'Create structured collaborative learning opportunities with clear roles and scaffolded social interactions that build both academic confidence and social skills.',
+        priority: 'high',
+        impact: 'high'
+      });
+    }
+  }
+  
+  // Combination 5: Curriculum demands issues + Multiple academic weaknesses
+  if (hasPassData && hasAcademicData) {
+    const hasCurriculumIssue = passAnalysis.riskAreas.some(r => 
+      r.factor.toLowerCase().includes('curriculum') || r.factor.toLowerCase().includes('learning'));
+    
+    const multipleAcademicWeaknesses = academicAnalysis.subjects.filter(s => s.level === 'weakness').length >= 2;
+    
+    if (hasCurriculumIssue && multipleAcademicWeaknesses) {
+      compoundInterventions.push({
+        domain: 'integrated',
+        factor: 'Curriculum Coping and Academic Skills',
+        title: 'Learning Strategies Across Curriculum',
+        description: 'Cross-curricular approach teaching transferable learning strategies that can be applied across multiple subjects, with scaffolded implementation and regular review.',
+        priority: 'high',
+        impact: 'high'
+      });
+    }
+  }
+  
+  // Combination 6: Fragile learner + Multiple academic subject weaknesses
+  if (isFragileLearner && hasAcademicData) {
+    const multipleAcademicWeaknesses = academicAnalysis.subjects.filter(s => s.level === 'weakness').length >= 2;
+    
+    if (multipleAcademicWeaknesses) {
+      compoundInterventions.push({
+        domain: 'integrated',
+        factor: 'Cognitive Potential and Academic Performance',
+        title: 'Cognitive Apprenticeship Program',
+        description: 'Structured metacognitive approach that makes thinking processes visible across subjects, explicitly connecting cognitive strategies to academic content mastery.',
+        priority: 'high',
+        impact: 'very high'
+      });
+    }
+  }
+  
+  return compoundInterventions;
+}
+
+/**
+ * ProgressTracker class for historical data tracking and intervention effectiveness
+ * This module allows tracking student progress over time and assessing intervention impact
+ */
+class ProgressTracker {
+  constructor() {
+    this.assessmentTypes = {
+      PASS: 'PASS',
+      CAT4: 'CAT4',
+      ACADEMIC: 'ACADEMIC'
+    };
+    
+    // Define expected improvement thresholds for different assessment types
+    this.improvementThresholds = {
+      PASS: 5, // 5 percentile points improvement considered significant
+      CAT4: 0.5, // 0.5 stanine improvement considered significant
+      ACADEMIC: 0.5 // 0.5 stanine improvement considered significant
+    };
+  }
+  
+  /**
+   * Track progress between two assessment periods
+   * @param {Object} currentData - Current student analysis data
+   * @param {Object} previousData - Previous student analysis data
+   * @returns {Object} Progress analysis results
+   */
+  trackProgress(currentData, previousData) {
+    if (!previousData) {
+      return {
+        hasBaseline: false,
+        message: "No previous assessment data available for comparison."
+      };
+    }
+    
+    const progress = {
+      hasBaseline: true,
+      pass: this._analyzePassProgress(currentData.pass_analysis, previousData.pass_analysis),
+      cat4: this._analyzeCat4Progress(currentData.cat4_analysis, previousData.cat4_analysis),
+      academic: this._analyzeAcademicProgress(currentData.academic_analysis, previousData.academic_analysis),
+      interventionEffectiveness: this._analyzeInterventionEffectiveness(
+        currentData, 
+        previousData
+      ),
+      improvementAreas: [],
+      concernAreas: [],
+      summary: ""
+    };
+    
+    // Compile improvement and concern areas
+    this._compileImprovementAreas(progress);
+    this._compileConcernAreas(progress);
+    
+    // Generate summary
+    progress.summary = this._generateProgressSummary(progress);
+    
+    return progress;
+  }
+  
+  /**
+   * Analyze progress in PASS factors
+   */
+  _analyzePassProgress(currentPass, previousPass) {
+    if (!currentPass.available || !previousPass.available) {
+      return {
+        available: false,
+        message: "PASS comparison not available."
+      };
+    }
+    
+    const factorAnalysis = {};
+    const currentFactors = currentPass.factors;
+    const previousFactors = previousPass.factors;
+    
+    // Compare each factor
+    for (const factor of currentFactors) {
+      const prevFactor = previousFactors.find(f => f.name === factor.name);
+      
+      if (prevFactor) {
+        const change = factor.percentile - prevFactor.percentile;
+        const isSignificant = Math.abs(change) >= this.improvementThresholds.PASS;
+        const direction = change > 0 ? "improved" : "declined";
         
-        if (factor.includes('self regard')) {
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Self Regard',
-            title: 'Self-Esteem Building',
-            description: 'Weekly sessions focusing on identifying and celebrating strengths. Include positive affirmation activities and reflective journaling.',
-            priority: 'high'
+        factorAnalysis[factor.name] = {
+          current: factor.percentile,
+          previous: prevFactor.percentile,
+          change: change,
+          isSignificant: isSignificant,
+          direction: direction,
+          status: this._getChangeStatus(change, this.improvementThresholds.PASS)
+        };
+      }
+    }
+    
+    // Calculate overall PASS progress
+    const changes = Object.values(factorAnalysis).map(a => a.change);
+    const averageChange = changes.length > 0 ? 
+      changes.reduce((sum, change) => sum + change, 0) / changes.length : 0;
+      
+    return {
+      available: true,
+      factorAnalysis: factorAnalysis,
+      averageChange: averageChange,
+      overallStatus: this._getChangeStatus(averageChange, this.improvementThresholds.PASS)
+    };
+  }
+  
+  /**
+   * Analyze progress in CAT4 domains
+   */
+  _analyzeCat4Progress(currentCat4, previousCat4) {
+    if (!currentCat4.available || !previousCat4.available) {
+      return {
+        available: false,
+        message: "CAT4 comparison not available."
+      };
+    }
+    
+    const domainAnalysis = {};
+    const currentDomains = currentCat4.domains;
+    const previousDomains = previousCat4.domains;
+    
+    // Compare each domain
+    for (const domain of currentDomains) {
+      const prevDomain = previousDomains.find(d => d.name === domain.name);
+      
+      if (prevDomain) {
+        const change = domain.stanine - prevDomain.stanine;
+        const isSignificant = Math.abs(change) >= this.improvementThresholds.CAT4;
+        const direction = change > 0 ? "improved" : "declined";
+        
+        domainAnalysis[domain.name] = {
+          current: domain.stanine,
+          previous: prevDomain.stanine,
+          change: change,
+          isSignificant: isSignificant,
+          direction: direction,
+          status: this._getChangeStatus(change, this.improvementThresholds.CAT4)
+        };
+      }
+    }
+    
+    // Check for change in fragile learner status
+    const fragileLearnerChange = {
+      current: currentCat4.is_fragile_learner,
+      previous: previousCat4.is_fragile_learner,
+      hasChanged: currentCat4.is_fragile_learner !== previousCat4.is_fragile_learner,
+      direction: currentCat4.is_fragile_learner ? 
+        (previousCat4.is_fragile_learner ? "unchanged" : "negative") : 
+        (previousCat4.is_fragile_learner ? "positive" : "unchanged")
+    };
+    
+    // Calculate overall CAT4 progress
+    const changes = Object.values(domainAnalysis).map(a => a.change);
+    const averageChange = changes.length > 0 ? 
+      changes.reduce((sum, change) => sum + change, 0) / changes.length : 0;
+      
+    return {
+      available: true,
+      domainAnalysis: domainAnalysis,
+      fragileLearnerChange: fragileLearnerChange,
+      averageChange: averageChange,
+      overallStatus: this._getChangeStatus(averageChange, this.improvementThresholds.CAT4)
+    };
+  }
+  
+  /**
+   * Analyze progress in academic performance
+   */
+  _analyzeAcademicProgress(currentAcademic, previousAcademic) {
+    if (!currentAcademic.available || !previousAcademic.available) {
+      return {
+        available: false,
+        message: "Academic comparison not available."
+      };
+    }
+    
+    const subjectAnalysis = {};
+    const currentSubjects = currentAcademic.subjects;
+    const previousSubjects = previousAcademic.subjects;
+    
+    // Compare each subject
+    for (const subject of currentSubjects) {
+      const prevSubject = previousSubjects.find(s => s.name === subject.name);
+      
+      if (prevSubject) {
+        const change = subject.stanine - prevSubject.stanine;
+        const isSignificant = Math.abs(change) >= this.improvementThresholds.ACADEMIC;
+        const direction = change > 0 ? "improved" : "declined";
+        
+        subjectAnalysis[subject.name] = {
+          current: subject.stanine,
+          previous: prevSubject.stanine,
+          change: change,
+          isSignificant: isSignificant,
+          direction: direction,
+          status: this._getChangeStatus(change, this.improvementThresholds.ACADEMIC)
+        };
+      }
+    }
+    
+    // Calculate overall academic progress
+    const changes = Object.values(subjectAnalysis).map(a => a.change);
+    const averageChange = changes.length > 0 ? 
+      changes.reduce((sum, change) => sum + change, 0) / changes.length : 0;
+      
+    return {
+      available: true,
+      subjectAnalysis: subjectAnalysis,
+      averageChange: averageChange,
+      overallStatus: this._getChangeStatus(averageChange, this.improvementThresholds.ACADEMIC)
+    };
+  }
+  
+  /**
+   * Analyze intervention effectiveness
+   */
+  _analyzeInterventionEffectiveness(currentData, previousData) {
+    // Get previous interventions
+    const previousInterventions = previousData.interventions || [];
+    
+    if (previousInterventions.length === 0) {
+      return {
+        available: false,
+        message: "No previous interventions to evaluate."
+      };
+    }
+    
+    const interventionEffectiveness = {};
+    
+    // Analyze each previous intervention
+    for (const intervention of previousInterventions) {
+      const domain = intervention.domain;
+      const factor = intervention.factor;
+      
+      // Find related improvement
+      let effectiveness = "unknown";
+      let evidence = "";
+      
+      // Check PASS improvements for emotional/behavioral interventions
+      if (domain === 'emotional' || domain === 'behavioral') {
+        if (currentData.pass_analysis.available && previousData.pass_analysis.available) {
+          const passFactors = currentData.pass_analysis.factors;
+          const prevPassFactors = previousData.pass_analysis.factors;
+          
+          // Find factors related to this intervention
+          const relatedFactors = passFactors.filter(f => 
+            f.name.toLowerCase().includes(factor.toLowerCase()));
+            
+          if (relatedFactors.length > 0) {
+            // Check for improvement in related factors
+            let totalChange = 0;
+            let factorCount = 0;
+            
+            for (const relatedFactor of relatedFactors) {
+              const prevFactor = prevPassFactors.find(f => f.name === relatedFactor.name);
+              if (prevFactor) {
+                const change = relatedFactor.percentile - prevFactor.percentile;
+                totalChange += change;
+                factorCount++;
+                evidence += `${relatedFactor.name}: ${change > 0 ? '+' : ''}${change.toFixed(1)} percentile points. `;
+              }
+            }
+            
+            if (factorCount > 0) {
+              const avgChange = totalChange / factorCount;
+              if (avgChange >= this.improvementThresholds.PASS) {
+                effectiveness = "effective";
+              } else if (avgChange <= -this.improvementThresholds.PASS) {
+                effectiveness = "not effective";
+              } else {
+                effectiveness = "partially effective";
+              }
+            }
+          }
+        }
+      }
+      // Check CAT4 improvements for cognitive interventions
+      else if (domain === 'cognitive') {
+        if (currentData.cat4_analysis.available && previousData.cat4_analysis.available) {
+          const cat4Domains = currentData.cat4_analysis.domains;
+          const prevCat4Domains = previousData.cat4_analysis.domains;
+          
+          // Find domains related to this intervention
+          const relatedDomains = cat4Domains.filter(d => 
+            d.name.toLowerCase().includes(factor.toLowerCase()));
+            
+          if (relatedDomains.length > 0) {
+            // Check for improvement in related domains
+            let totalChange = 0;
+            let domainCount = 0;
+            
+            for (const relatedDomain of relatedDomains) {
+              const prevDomain = prevCat4Domains.find(d => d.name === relatedDomain.name);
+              if (prevDomain) {
+                const change = relatedDomain.stanine - prevDomain.stanine;
+                totalChange += change;
+                domainCount++;
+                evidence += `${relatedDomain.name}: ${change > 0 ? '+' : ''}${change.toFixed(1)} stanine points. `;
+              }
+            }
+            
+            if (domainCount > 0) {
+              const avgChange = totalChange / domainCount;
+              if (avgChange >= this.improvementThresholds.CAT4) {
+                effectiveness = "effective";
+              } else if (avgChange <= -this.improvementThresholds.CAT4) {
+                effectiveness = "not effective";
+              } else {
+                effectiveness = "partially effective";
+              }
+            }
+          }
+        }
+      }
+      // Check academic improvements for academic interventions
+      else if (domain === 'academic') {
+        if (currentData.academic_analysis.available && previousData.academic_analysis.available) {
+          const subjects = currentData.academic_analysis.subjects;
+          const prevSubjects = previousData.academic_analysis.subjects;
+          
+          // Find subjects related to this intervention
+          const relatedSubjects = subjects.filter(s => 
+            s.name.toLowerCase().includes(factor.toLowerCase().replace(' performance', '')));
+            
+          if (relatedSubjects.length > 0) {
+            // Check for improvement in related subjects
+            let totalChange = 0;
+            let subjectCount = 0;
+            
+            for (const relatedSubject of relatedSubjects) {
+              const prevSubject = prevSubjects.find(s => s.name === relatedSubject.name);
+              if (prevSubject) {
+                const change = relatedSubject.stanine - prevSubject.stanine;
+                totalChange += change;
+                subjectCount++;
+                evidence += `${relatedSubject.name}: ${change > 0 ? '+' : ''}${change.toFixed(1)} stanine points. `;
+              }
+            }
+            
+            if (subjectCount > 0) {
+              const avgChange = totalChange / subjectCount;
+              if (avgChange >= this.improvementThresholds.ACADEMIC) {
+                effectiveness = "effective";
+              } else if (avgChange <= -this.improvementThresholds.ACADEMIC) {
+                effectiveness = "not effective";
+              } else {
+                effectiveness = "partially effective";
+              }
+            }
+          }
+        }
+      }
+      // Check holistic/integrated interventions through overall changes
+      else if (domain === 'holistic' || domain === 'integrated') {
+        // Calculate overall change across all domains
+        let totalChanges = [];
+        
+        // Include PASS changes
+        if (currentData.pass_analysis.available && previousData.pass_analysis.available) {
+          const passFactors = currentData.pass_analysis.factors;
+          const prevPassFactors = previousData.pass_analysis.factors;
+          
+          for (const factor of passFactors) {
+            const prevFactor = prevPassFactors.find(f => f.name === factor.name);
+            if (prevFactor) {
+              const normalizedChange = (factor.percentile - prevFactor.percentile) / this.improvementThresholds.PASS;
+              totalChanges.push(normalizedChange);
+            }
+          }
+        }
+        
+        // Include CAT4 changes
+        if (currentData.cat4_analysis.available && previousData.cat4_analysis.available) {
+          const cat4Domains = currentData.cat4_analysis.domains;
+          const prevCat4Domains = previousData.cat4_analysis.domains;
+          
+          for (const domain of cat4Domains) {
+            const prevDomain = prevCat4Domains.find(d => d.name === domain.name);
+            if (prevDomain) {
+              const normalizedChange = (domain.stanine - prevDomain.stanine) / this.improvementThresholds.CAT4;
+              totalChanges.push(normalizedChange);
+            }
+          }
+        }
+        
+        // Include academic changes
+        if (currentData.academic_analysis.available && previousData.academic_analysis.available) {
+          const subjects = currentData.academic_analysis.subjects;
+          const prevSubjects = previousData.academic_analysis.subjects;
+          
+          for (const subject of subjects) {
+            const prevSubject = prevSubjects.find(s => s.name === subject.name);
+            if (prevSubject) {
+              const normalizedChange = (subject.stanine - prevSubject.stanine) / this.improvementThresholds.ACADEMIC;
+              totalChanges.push(normalizedChange);
+            }
+          }
+        }
+        
+        // Calculate average normalized change
+        if (totalChanges.length > 0) {
+          const avgNormalizedChange = totalChanges.reduce((sum, change) => sum + change, 0) / totalChanges.length;
+          
+          if (avgNormalizedChange >= 1.0) {
+            effectiveness = "effective";
+            evidence = `Overall improvement across multiple assessment areas.`;
+          } else if (avgNormalizedChange <= -1.0) {
+            effectiveness = "not effective";
+            evidence = `Overall decline across multiple assessment areas.`;
+          } else {
+            effectiveness = "partially effective";
+            evidence = `Mixed results across assessment areas.`;
+          }
+        }
+      }
+      
+      interventionEffectiveness[intervention.title] = {
+        domain: domain,
+        factor: factor,
+        effectiveness: effectiveness,
+        evidence: evidence
+      };
+    }
+    
+    return {
+      available: true,
+      interventions: interventionEffectiveness
+    };
+  }
+  
+  /**
+   * Get status of change based on threshold
+   */
+  _getChangeStatus(change, threshold) {
+    if (change >= threshold) return "significant improvement";
+    if (change > 0) return "slight improvement";
+    if (change === 0) return "no change";
+    if (change > -threshold) return "slight decline";
+    return "significant decline";
+  }
+  
+  /**
+   * Compile improvement areas based on progress analysis
+   */
+  _compileImprovementAreas(progress) {
+    // PASS improvements
+    if (progress.pass.available) {
+      for (const [factor, analysis] of Object.entries(progress.pass.factorAnalysis)) {
+        if (analysis.status === "significant improvement") {
+          progress.improvementAreas.push({
+            domain: "PASS",
+            factor: factor,
+            improvement: analysis.change.toFixed(1) + " percentile points",
+            significance: "significant"
+          });
+        }
+      }
+    }
+    
+    // CAT4 improvements
+    if (progress.cat4.available) {
+      for (const [domain, analysis] of Object.entries(progress.cat4.domainAnalysis)) {
+        if (analysis.status === "significant improvement") {
+          progress.improvementAreas.push({
+            domain: "CAT4",
+            factor: domain,
+            improvement: analysis.change.toFixed(1) + " stanine points",
+            significance: "significant"
+          });
+        }
+      }
+      
+      // Include fragile learner improvement
+      if (progress.cat4.fragileLearnerChange.direction === "positive") {
+        progress.improvementAreas.push({
+          domain: "CAT4",
+          factor: "Fragile Learner Status",
+          improvement: "No longer classified as a fragile learner",
+          significance: "significant"
+        });
+      }
+    }
+    
+    // Academic improvements
+    if (progress.academic.available) {
+      for (const [subject, analysis] of Object.entries(progress.academic.subjectAnalysis)) {
+        if (analysis.status === "significant improvement") {
+          progress.improvementAreas.push({
+            domain: "Academic",
+            factor: subject,
+            improvement: analysis.change.toFixed(1) + " stanine points",
+            significance: "significant"
+          });
+        }
+      }
+    }
+    
+    // Sort improvements by significance
+    progress.improvementAreas.sort((a, b) => 
+      a.significance === "significant" ? -1 : 1);
+  }
+  
+  /**
+   * Compile concern areas based on progress analysis
+   */
+  _compileConcernAreas(progress) {
+    // PASS concerns
+    if (progress.pass.available) {
+      for (const [factor, analysis] of Object.entries(progress.pass.factorAnalysis)) {
+        if (analysis.status === "significant decline") {
+          progress.concernAreas.push({
+            domain: "PASS",
+            factor: factor,
+            decline: analysis.change.toFixed(1) + " percentile points",
+            significance: "significant"
+          });
+        }
+      }
+    }
+    
+    // CAT4 concerns
+    if (progress.cat4.available) {
+      for (const [domain, analysis] of Object.entries(progress.cat4.domainAnalysis)) {
+        if (analysis.status === "significant decline") {
+          progress.concernAreas.push({
+            domain: "CAT4",
+            factor: domain,
+            decline: analysis.change.toFixed(1) + " stanine points",
+            significance: "significant"
+          });
+        }
+      }
+      
+      // Include fragile learner decline
+      if (progress.cat4.fragileLearnerChange.direction === "negative") {
+        progress.concernAreas.push({
+          domain: "CAT4",
+          factor: "Fragile Learner Status",
+          decline: "Now classified as a fragile learner",
+          significance: "significant"
+        });
+      }
+    }
+    
+    // Academic concerns
+    if (progress.academic.available) {
+      for (const [subject, analysis] of Object.entries(progress.academic.subjectAnalysis)) {
+        if (analysis.status === "significant decline") {
+          progress.concernAreas.push({
+            domain: "Academic",
+            factor: subject,
+            decline: analysis.change.toFixed(1) + " stanine points",
+            significance: "significant"
+          });
+        }
+      }
+    }
+    
+    // Sort concerns by significance
+    progress.concernAreas.sort((a, b) => 
+      a.significance === "significant" ? -1 : 1);
+  }
+  
+  /**
+   * Generate summary of progress
+   */
+  _generateProgressSummary(progress) {
+    let summary = "";
+    
+    // Add overall assessment
+    const assessmentsAvailable = [
+      progress.pass.available ? "PASS" : null,
+      progress.cat4.available ? "CAT4" : null,
+      progress.academic.available ? "Academic" : null
+    ].filter(Boolean);
+    
+    if (assessmentsAvailable.length === 0) {
+      return "No comparable assessment data available.";
+    }
+    
+    summary += `Progress summary based on ${assessmentsAvailable.join(", ")} data: `;
+    
+    // Calculate overall direction
+    const overallChanges = [];
+    if (progress.pass.available) overallChanges.push(progress.pass.averageChange);
+    if (progress.cat4.available) overallChanges.push(progress.cat4.averageChange);
+    if (progress.academic.available) overallChanges.push(progress.academic.averageChange);
+    
+    const avgOverallChange = overallChanges.reduce((sum, change) => sum + change, 0) / overallChanges.length;
+    
+    if (avgOverallChange > 0.5) {
+      summary += "The student has shown overall improvement across assessment areas. ";
+    } else if (avgOverallChange < -0.5) {
+      summary += "The student has shown overall decline across assessment areas. ";
+    } else {
+      summary += "The student has shown mixed results or minimal change across assessment areas. ";
+    }
+    
+    // Add highlights of key improvements
+    if (progress.improvementAreas.length > 0) {
+      summary += `Notable improvements in ${progress.improvementAreas.slice(0, 2).map(area => area.factor).join(", ")}. `;
+    }
+    
+    // Add highlights of key concerns
+    if (progress.concernAreas.length > 0) {
+      summary += `Areas of concern include ${progress.concernAreas.slice(0, 2).map(area => area.factor).join(", ")}. `;
+    }
+    
+    // Add intervention effectiveness summary
+    if (progress.interventionEffectiveness.available) {
+      const interventions = progress.interventionEffectiveness.interventions;
+      const effectiveCount = Object.values(interventions).filter(i => i.effectiveness === "effective").length;
+      const partialCount = Object.values(interventions).filter(i => i.effectiveness === "partially effective").length;
+      const ineffectiveCount = Object.values(interventions).filter(i => i.effectiveness === "not effective").length;
+      
+      if (Object.keys(interventions).length > 0) {
+        summary += `Of the previous interventions, ${effectiveCount} were effective, ${partialCount} were partially effective, and ${ineffectiveCount} were not effective. `;
+        
+        // Add most effective intervention
+        const mostEffective = Object.entries(interventions).find(([_, i]) => i.effectiveness === "effective");
+        if (mostEffective) {
+          summary += `The "${mostEffective[0]}" intervention showed the most positive impact. `;
+        }
+      }
+    }
+    
+    return summary;
+  }
+}
+
+export default ProgressTracker;
+
+/**
+ * PredictiveAnalytics class for early warning system
+ * This module helps identify students who may become at risk before issues manifest
+ */
+class PredictiveAnalytics {
+  constructor() {
+    // Define risk factor weights for predictive model
+    this.riskFactorWeights = {
+      // PASS factors
+      'self_regard': 0.8,
+      'perceived_learning': 0.6,
+      'attitude_teachers': 0.7,
+      'general_work_ethic': 0.9,
+      'confidence_learning': 0.7,
+      'preparedness': 0.6,
+      'emotional_control': 0.8,
+      'social_confidence': 0.5,
+      'curriculum_demand': 0.6,
+      
+      // CAT4 domains
+      'verbal_reasoning': 0.7,
+      'quantitative_reasoning': 0.7,
+      'nonverbal_reasoning': 0.6,
+      'spatial_reasoning': 0.5,
+      
+      // Combined factors
+      'fragile_learner': 0.9,
+      'academic_underperformance': 0.8,
+      'declining_trends': 0.9,
+      'attendance_issues': 0.7
+    };
+    
+    // Define threshold values for risk prediction
+    this.thresholds = {
+      high_risk: 0.7,
+      medium_risk: 0.4,
+      borderline: 0.3
+    };
+    
+    // Define early indicators of potential future risks
+    this.earlyIndicators = {
+      // Minor PASS declines that might predict future issues
+      pass_early_warnings: {
+        self_regard_threshold: 50,
+        work_ethic_threshold: 55,
+        emotional_control_threshold: 50
+      },
+      
+      // Small gaps between cognitive potential and performance
+      potential_gap_threshold: 1, // 1 stanine difference
+      
+      // Patterns in assessment fluctuations
+      volatility_threshold: 10, // 10% variability in PASS scores
+      
+      // Combined risk patterns
+      combined_threshold: 0.25
+    };
+  }
+  
+  /**
+   * Analyze student data to predict future risk
+   * @param {Object} studentData - Current student data 
+   * @param {Array} historicalData - Array of previous student analyses
+   * @returns {Object} Risk prediction results
+   */
+  predictRisk(studentData, historicalData = []) {
+    // Initialize prediction results
+    const prediction = {
+      overall_risk_score: 0,
+      risk_level: 'low',
+      risk_factors: [],
+      early_indicators: [],
+      trend_analysis: this._analyzeTrends(studentData, historicalData),
+      time_to_intervention: 'not urgent',
+      confidence: 0.0,
+      recommendations: []
+    };
+    
+    // Calculate current risk factors
+    const currentRiskFactors = this._calculateCurrentRiskFactors(studentData);
+    prediction.risk_factors = currentRiskFactors.factors;
+    
+    // Calculate early warning indicators
+    const earlyWarnings = this._identifyEarlyWarnings(studentData, historicalData);
+    prediction.early_indicators = earlyWarnings.indicators;
+    
+    // Calculate overall risk score
+    const weightedCurrentRisk = currentRiskFactors.score * 0.7;
+    const weightedEarlyRisk = earlyWarnings.score * 0.3;
+    prediction.overall_risk_score = weightedCurrentRisk + weightedEarlyRisk;
+    
+    // Determine risk level
+    if (prediction.overall_risk_score >= this.thresholds.high_risk) {
+      prediction.risk_level = 'high';
+      prediction.time_to_intervention = 'urgent';
+    } else if (prediction.overall_risk_score >= this.thresholds.medium_risk) {
+      prediction.risk_level = 'medium';
+      prediction.time_to_intervention = 'soon';
+    } else if (prediction.overall_risk_score >= this.thresholds.borderline) {
+      prediction.risk_level = 'borderline';
+      prediction.time_to_intervention = 'monitor';
+    } else {
+      prediction.risk_level = 'low';
+      prediction.time_to_intervention = 'not urgent';
+    }
+    
+    // Calculate confidence based on data completeness
+    prediction.confidence = this._calculatePredictionConfidence(studentData, historicalData);
+    
+    // Generate preventive recommendations
+    prediction.recommendations = this._generatePreventiveRecommendations(
+      prediction.risk_level,
+      prediction.risk_factors,
+      prediction.early_indicators,
+      prediction.trend_analysis
+    );
+    
+    return prediction;
+  }
+  
+  /**
+   * Calculate current risk factors from student data
+   */
+  _calculateCurrentRiskFactors(studentData) {
+    const riskFactors = [];
+    let totalScore = 0;
+    let factorCount = 0;
+    
+    // Check PASS factors
+    if (studentData.pass_analysis && studentData.pass_analysis.available) {
+      const passFactors = studentData.pass_analysis.factors;
+      
+      for (const factor of passFactors) {
+        // Calculate risk level for this factor (lower percentile = higher risk)
+        const normalizedRisk = Math.max(0, (45 - factor.percentile) / 45);
+        if (normalizedRisk > 0) {
+          const weight = this.riskFactorWeights[factor.name.toLowerCase().replace(' ', '_')] || 0.5;
+          const weightedRisk = normalizedRisk * weight;
+          
+          // Only include as a risk factor if it exceeds a minimal threshold
+          if (normalizedRisk >= 0.2) {
+            riskFactors.push({
+              domain: 'PASS',
+              factor: factor.name,
+              level: normalizedRisk,
+              weighted_risk: weightedRisk,
+              details: `${factor.name} score (${factor.percentile}%) is below threshold.`
+            });
+          }
+          
+          totalScore += weightedRisk;
+          factorCount++;
+        }
+      }
+    }
+    
+    // Check CAT4 factors
+    if (studentData.cat4_analysis && studentData.cat4_analysis.available) {
+      const cat4Domains = studentData.cat4_analysis.domains;
+      
+      for (const domain of cat4Domains) {
+        // Calculate risk level for this domain (lower stanine = higher risk)
+        const normalizedRisk = Math.max(0, (4 - domain.stanine) / 3);
+        if (normalizedRisk > 0) {
+          const weight = this.riskFactorWeights[domain.name.toLowerCase().replace(' ', '_')] || 0.5;
+          const weightedRisk = normalizedRisk * weight;
+          
+          // Only include as a risk factor if it exceeds a minimal threshold
+          if (normalizedRisk >= 0.2) {
+            riskFactors.push({
+              domain: 'CAT4',
+              factor: domain.name,
+              level: normalizedRisk,
+              weighted_risk: weightedRisk,
+              details: `${domain.name} stanine (${domain.stanine}) is below threshold.`
+            });
+          }
+          
+          totalScore += weightedRisk;
+          factorCount++;
+        }
+      }
+      
+      // Check fragile learner status
+      if (studentData.cat4_analysis.is_fragile_learner) {
+        const weight = this.riskFactorWeights.fragile_learner;
+        const weightedRisk = 1.0 * weight; // Full weight for fragile learner
+        
+        riskFactors.push({
+          domain: 'CAT4',
+          factor: 'Fragile Learner',
+          level: 1.0,
+          weighted_risk: weightedRisk,
+          details: 'Student is classified as a fragile learner based on CAT4 profile.'
+        });
+        
+        totalScore += weightedRisk;
+        factorCount++;
+      }
+    }
+    
+    // Check academic performance
+    if (studentData.academic_analysis && studentData.academic_analysis.available) {
+      const subjects = studentData.academic_analysis.subjects;
+      
+      for (const subject of subjects) {
+        // Calculate risk level for this subject (lower stanine = higher risk)
+        const normalizedRisk = Math.max(0, (4 - subject.stanine) / 3);
+        if (normalizedRisk > 0) {
+          const weight = 0.6; // Standard weight for academic subjects
+          const weightedRisk = normalizedRisk * weight;
+          
+          // Only include as a risk factor if it exceeds a minimal threshold
+          if (normalizedRisk >= 0.3) {
+            riskFactors.push({
+              domain: 'Academic',
+              factor: subject.name,
+              level: normalizedRisk,
+              weighted_risk: weightedRisk,
+              details: `${subject.name} performance (stanine ${subject.stanine}) is below threshold.`
+            });
+          }
+          
+          totalScore += weightedRisk;
+          factorCount++;
+        }
+      }
+      
+      // Check for academic underperformance compared to cognitive potential
+      if (studentData.cat4_analysis && studentData.cat4_analysis.available) {
+        const avgCat4 = studentData.cat4_analysis.domains.reduce((sum, d) => sum + d.stanine, 0) / 
+                        studentData.cat4_analysis.domains.length;
+        
+        const avgAcademic = subjects.reduce((sum, s) => sum + s.stanine, 0) / subjects.length;
+        
+        const underperformance = Math.max(0, avgCat4 - avgAcademic - 0.5);
+        if (underperformance > 0) {
+          const weight = this.riskFactorWeights.academic_underperformance;
+          const weightedRisk = Math.min(1.0, underperformance / 2.0) * weight;
+          
+          riskFactors.push({
+            domain: 'Academic',
+            factor: 'Underperformance',
+            level: Math.min(1.0, underperformance / 2.0),
+            weighted_risk: weightedRisk,
+            details: `Student is performing below cognitive potential (${avgAcademic.toFixed(1)} vs ${avgCat4.toFixed(1)}).`
           });
           
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Self Regard',
-            title: 'Success Portfolio',
-            description: 'Create a digital or physical portfolio where student can document and reflect on achievements, no matter how small.',
-            priority: 'medium'
-          });
+          totalScore += weightedRisk;
+          factorCount++;
         }
-        else if (factor.includes('attitude to teacher')) {
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Attitude to Teachers',
-            title: 'Teacher-Student Mediation',
-            description: 'Facilitated discussion between student and teachers to address concerns and establish mutual respect and understanding.',
-            priority: 'medium'
+      }
+    }
+    
+    // Calculate average risk score
+    const avgScore = factorCount > 0 ? (totalScore / factorCount) : 0;
+    
+    // Sort risk factors by weighted risk
+    riskFactors.sort((a, b) => b.weighted_risk - a.weighted_risk);
+    
+    return {
+      factors: riskFactors,
+      score: avgScore
+    };
+  }
+  
+  /**
+   * Identify early warning indicators
+   */
+  _identifyEarlyWarnings(studentData, historicalData) {
+    const earlyWarnings = [];
+    let totalWarningScore = 0;
+    let warningCount = 0;
+    
+    // Check for borderline PASS scores (not yet at risk but approaching threshold)
+    if (studentData.pass_analysis && studentData.pass_analysis.available) {
+      const passFactors = studentData.pass_analysis.factors;
+      const earlyThresholds = this.earlyIndicators.pass_early_warnings;
+      
+      for (const factor of passFactors) {
+        const factorName = factor.name.toLowerCase().replace(' ', '_');
+        const threshold = earlyThresholds[`${factorName}_threshold`] || 50;
+        
+        // Check if score is in the borderline range (not at risk yet, but approaching)
+        if (factor.percentile >= 45 && factor.percentile <= threshold) {
+          const warningLevel = (threshold - factor.percentile) / (threshold - 45);
+          
+          earlyWarnings.push({
+            domain: 'PASS',
+            indicator: `Borderline ${factor.name}`,
+            level: warningLevel,
+            details: `${factor.name} score (${factor.percentile}%) is approaching risk threshold.`
           });
           
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Attitude to Teachers',
-            title: 'Mentorship Assignment',
-            description: 'Pair student with a staff member who can serve as a mentor and demonstrate positive teacher relationships.',
-            priority: 'medium'
-          });
+          totalWarningScore += warningLevel;
+          warningCount++;
         }
-        else if (factor.includes('work ethic')) {
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Work Ethic',
-            title: 'Academic Coaching',
-            description: 'Weekly sessions to develop organizational skills, time management, and task prioritization strategies.',
-            priority: 'high'
+      }
+    }
+    
+    // Check for minor cognitive-performance gaps
+    if (studentData.cat4_analysis && studentData.cat4_analysis.available && 
+        studentData.academic_analysis && studentData.academic_analysis.available) {
+      
+      // Compare verbal reasoning with English performance
+      const verbalDomain = studentData.cat4_analysis.domains.find(d => 
+        d.name.toLowerCase().includes('verbal'));
+        
+      const englishSubject = studentData.academic_analysis.subjects.find(s => 
+        s.name.toLowerCase().includes('english'));
+        
+      if (verbalDomain && englishSubject) {
+        const gap = verbalDomain.stanine - englishSubject.stanine;
+        if (gap >= this.earlyIndicators.potential_gap_threshold && 
+            gap < this.earlyIndicators.potential_gap_threshold + 1) {
+          const warningLevel = Math.min(1.0, (gap - this.earlyIndicators.potential_gap_threshold) + 0.3);
+          
+          earlyWarnings.push({
+            domain: 'Academic',
+            indicator: 'Emerging Verbal-English Gap',
+            level: warningLevel,
+            details: `Student's verbal reasoning (${verbalDomain.stanine}) is higher than English performance (${englishSubject.stanine}).`
           });
           
-          interventions.push({
-            domain: 'behavioral',
-            factor: 'Work Ethic',
-            title: 'Goal Setting Framework',
-            description: 'Implement SMART goal system with regular progress monitoring and incentives for completion.',
-            priority: 'high'
-          });
+          totalWarningScore += warningLevel;
+          warningCount++;
         }
-        else if (factor.includes('emotional control')) {
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Emotional Control',
-            title: 'Emotional Regulation Therapy',
-            description: 'Sessions focused on identifying emotional triggers and developing healthy coping mechanisms.',
-            priority: 'high'
+      }
+      
+      // Compare quantitative reasoning with Math performance
+      const quantDomain = studentData.cat4_analysis.domains.find(d => 
+        d.name.toLowerCase().includes('quant'));
+        
+      const mathSubject = studentData.academic_analysis.subjects.find(s => 
+        s.name.toLowerCase().includes('math'));
+        
+      if (quantDomain && mathSubject) {
+        const gap = quantDomain.stanine - mathSubject.stanine;
+        if (gap >= this.earlyIndicators.potential_gap_threshold && 
+            gap < this.earlyIndicators.potential_gap_threshold + 1) {
+          const warningLevel = Math.min(1.0, (gap - this.earlyIndicators.potential_gap_threshold) + 0.3);
+          
+          earlyWarnings.push({
+            domain: 'Academic',
+            indicator: 'Emerging Quantitative-Math Gap',
+            level: warningLevel,
+            details: `Student's quantitative reasoning (${quantDomain.stanine}) is higher than Math performance (${mathSubject.stanine}).`
           });
           
-          interventions.push({
-            domain: 'behavioral',
-            factor: 'Emotional Control',
-            title: 'Safe Space Protocol',
-            description: 'Establish procedure for student to access quiet space or trusted adult when feeling overwhelmed.',
-            priority: 'high'
-          });
+          totalWarningScore += warningLevel;
+          warningCount++;
         }
-        else if (factor.includes('social confidence')) {
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Social Confidence',
-            title: 'Social Skills Group',
-            description: 'Small group sessions focusing on conversational skills, friendship building, and navigating social situations.',
-            priority: 'medium'
+      }
+    }
+    
+    // Check for minor volatility in historical data
+    if (historicalData && historicalData.length >= 2) {
+      const latestHistory = historicalData[historicalData.length - 1];
+      
+      // Check PASS volatility
+      if (studentData.pass_analysis && studentData.pass_analysis.available && 
+          latestHistory.pass_analysis && latestHistory.pass_analysis.available) {
+        
+        let volatilityCount = 0;
+        let totalVolatility = 0;
+        
+        for (const factor of studentData.pass_analysis.factors) {
+          const prevFactor = latestHistory.pass_analysis.factors.find(f => f.name === factor.name);
+          if (prevFactor) {
+            const changePercent = Math.abs(factor.percentile - prevFactor.percentile);
+            if (changePercent >= 5 && changePercent <= this.earlyIndicators.volatility_threshold) {
+              volatilityCount++;
+              totalVolatility += changePercent;
+            }
+          }
+        }
+        
+        if (volatilityCount >= 2) {
+          const avgVolatility = totalVolatility / volatilityCount;
+          const warningLevel = Math.min(1.0, avgVolatility / this.earlyIndicators.volatility_threshold);
+          
+          earlyWarnings.push({
+            domain: 'Trend',
+            indicator: 'PASS Score Volatility',
+            level: warningLevel,
+            details: `Student shows fluctuating PASS scores across ${volatilityCount} factors.`
           });
           
-          interventions.push({
-            domain: 'emotional',
-            factor: 'Social Confidence',
-            title: 'Structured Social Opportunities',
-            description: 'Create low-pressure opportunities for positive peer interaction through structured activities matching student interests.',
-            priority: 'medium'
-          });
+          totalWarningScore += warningLevel;
+          warningCount++;
         }
-        else if (factor.includes('curriculum demand')) {
-          interventions.push({
-            domain: 'academic',
-            factor: 'Curriculum Demands',
-            title: 'Curriculum Scaffolding',
-            description: 'Provide additional supports through modified assignments, extended deadlines, or supplementary resources.',
-            priority: 'high'
+      }
+    }
+    
+    // Combined indicators (patterns across different assessment types)
+    let combinedWarningCount = 0;
+    
+    // Pattern 1: Slight PASS decline + borderline CAT4 domain
+    if (historicalData && historicalData.length > 0) {
+      const latestHistory = historicalData[historicalData.length - 1];
+      
+      if (studentData.pass_analysis && studentData.pass_analysis.available && 
+          latestHistory.pass_analysis && latestHistory.pass_analysis.available &&
+          studentData.cat4_analysis && studentData.cat4_analysis.available) {
+        
+        // Check for slight PASS decline
+        let hasPassDecline = false;
+        let decliningFactors = [];
+        
+        for (const factor of studentData.pass_analysis.factors) {
+          const prevFactor = latestHistory.pass_analysis.factors.find(f => f.name === factor.name);
+          if (prevFactor && factor.percentile < prevFactor.percentile && 
+              factor.percentile >= 45 && prevFactor.percentile >= 45) {
+            decliningFactors.push(factor.name);
+            hasPassDecline = true;
+          }
+        }
+        
+        // Check for borderline CAT4 domain
+        let hasBorderlineCat4 = false;
+        let borderlineDomains = [];
+        
+        for (const domain of studentData.cat4_analysis.domains) {
+          if (domain.stanine === 4) {
+            borderlineDomains.push(domain.name);
+            hasBorderlineCat4 = true;
+          }
+        }
+        
+        if (hasPassDecline && hasBorderlineCat4) {
+          combinedWarningCount++;
+          const warningLevel = 0.5;
+          
+          earlyWarnings.push({
+            domain: 'Combined',
+            indicator: 'Early Fragile Learner Pattern',
+            level: warningLevel,
+            details: `Declining PASS scores (${decliningFactors.join(', ')}) combined with borderline CAT4 domains (${borderlineDomains.join(', ')}).`
           });
           
-          interventions.push({
-            domain: 'academic',
-            factor: 'Curriculum Demands',
-            title: 'Study Skills Training',
-            description: 'Direct instruction in subject-specific study strategies, note-taking techniques, and test preparation.',
-            priority: 'high'
-          });
+          totalWarningScore += warningLevel;
+          warningCount++;
         }
-        else if (factor.includes('perceived learning')) {
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Perceived Learning Capability',
-            title: 'Growth Mindset Intervention',
-            description: 'Structured activities to shift from fixed to growth mindset, emphasizing that abilities can be developed through dedication and hard work.',
-            priority: 'high'
-          });
+      }
+    }
+    
+    // Pattern 2: Good CAT4 + Declining academic trajectory
+    if (historicalData && historicalData.length > 0) {
+      const latestHistory = historicalData[historicalData.length - 1];
+      
+      if (studentData.cat4_analysis && studentData.cat4_analysis.available &&
+          studentData.academic_analysis && studentData.academic_analysis.available && 
+          latestHistory.academic_analysis && latestHistory.academic_analysis.available) {
+        
+        // Check for good CAT4 scores
+        const avgCat4 = studentData.cat4_analysis.domains.reduce((sum, d) => sum + d.stanine, 0) / 
+                        studentData.cat4_analysis.domains.length;
+        
+        // Check for declining academic trajectory
+        let hasAcademicDecline = false;
+        let decliningSubjects = [];
+        
+        for (const subject of studentData.academic_analysis.subjects) {
+          const prevSubject = latestHistory.academic_analysis.subjects.find(s => s.name === subject.name);
+          if (prevSubject && subject.stanine < prevSubject.stanine) {
+            decliningSubjects.push(subject.name);
+            hasAcademicDecline = true;
+          }
         }
-        else if (factor.includes('confidence in learning')) {
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Learning Confidence',
-            title: 'Scaffolded Success Experiences',
-            description: 'Carefully designed learning tasks that ensure success while gradually increasing difficulty to build confidence.',
-            priority: 'medium'
+        
+        if (avgCat4 >= 5 && hasAcademicDecline) {
+          combinedWarningCount++;
+          const warningLevel = 0.6;
+          
+          earlyWarnings.push({
+            domain: 'Combined',
+            indicator: 'Emerging Underperformance Pattern',
+            level: warningLevel,
+            details: `Student has good cognitive ability (avg. stanine ${avgCat4.toFixed(1)}) but declining academic performance in ${decliningSubjects.join(', ')}.`
           });
+          
+          totalWarningScore += warningLevel;
+          warningCount++;
         }
-        else if (factor.includes('preparedness')) {
-          interventions.push({
-            domain: 'behavioral',
-            factor: 'Preparedness for Learning',
-            title: 'Organization System',
-            description: 'Implementation of structured organization system for materials, assignments, and study schedule with regular check-ins.',
-            priority: 'medium'
+      }
+    }
+    
+    // Add combined warning bonus if multiple patterns detected
+    if (combinedWarningCount >= 2) {
+      totalWarningScore += 0.3;
+      warningCount++;
+    }
+    
+    // Calculate average warning score
+    const avgWarningScore = warningCount > 0 ? (totalWarningScore / warningCount) : 0;
+    
+    // Sort warnings by level
+    earlyWarnings.sort((a, b) => b.level - a.level);
+    
+    return {
+      indicators: earlyWarnings,
+      score: avgWarningScore
+    };
+  }
+  
+  /**
+   * Analyze trends in student data over time
+   */
+  _analyzeTrends(studentData, historicalData) {
+    if (!historicalData || historicalData.length === 0) {
+      return {
+        available: false,
+        message: "No historical data available for trend analysis."
+      };
+    }
+    
+    const trendAnalysis = {
+      available: true,
+      pass_trends: {},
+      cat4_trends: {},
+      academic_trends: {},
+      overall_direction: "stable"
+    };
+    
+    // Analyze PASS trends
+    if (studentData.pass_analysis && studentData.pass_analysis.available) {
+      const passFactors = studentData.pass_analysis.factors;
+      const factorTrends = {};
+      
+      for (const factor of passFactors) {
+        const factorName = factor.name;
+        const historicalValues = [];
+        
+        // Collect historical values for this factor
+        for (const history of historicalData) {
+          if (history.pass_analysis && history.pass_analysis.available) {
+            const historyFactor = history.pass_analysis.factors.find(f => f.name === factorName);
+            if (historyFactor) {
+              historicalValues.push({
+                timestamp: history.timestamp || 'unknown',
+                value: historyFactor.percentile
+              });
+            }
+          }
+        }
+        
+        // Add current value
+        historicalValues.push({
+          timestamp: studentData.timestamp || 'current',
+          value: factor.percentile
+        });
+        
+        // Calculate trend direction
+        let trendDirection = "stable";
+        let trendStrength = 0;
+        
+        if (historicalValues.length >= 2) {
+          const sortedValues = [...historicalValues].sort((a, b) => {
+            if (a.timestamp === 'current') return 1;
+            if (b.timestamp === 'current') return -1;
+            return a.timestamp - b.timestamp;
           });
+          
+          // Calculate linear regression
+          const n = sortedValues.length;
+          const indices = Array.from({ length: n }, (_, i) => i);
+          const sumX = indices.reduce((sum, x) => sum + x, 0);
+          const sumY = sortedValues.reduce((sum, point) => sum + point.value, 0);
+          const sumXY = indices.reduce((sum, x, i) => sum + x * sortedValues[i].value, 0);
+          const sumXX = indices.reduce((sum, x) => sum + x * x, 0);
+          
+          const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+          
+          // Normalize slope to determine trend strength
+          const maxChange = 20 * (n - 1); // Maximum possible change over the time period
+          const normalizedSlope = Math.abs(slope) / maxChange;
+          trendStrength = Math.min(1.0, normalizedSlope * 2);
+          
+          if (slope > 2) {
+            trendDirection = "improving";
+          } else if (slope < -2) {
+            trendDirection = "declining";
+          } else {
+            trendDirection = "stable";
+          }
         }
+        
+        factorTrends[factorName] = {
+          values: historicalValues,
+          direction: trendDirection,
+          strength: trendStrength
+        };
+      }
+      
+      trendAnalysis.pass_trends = factorTrends;
+    }
+    
+    // Analyze CAT4 trends (similar approach as PASS trends)
+    // These change less frequently but can still be tracked
+    if (studentData.cat4_analysis && studentData.cat4_analysis.available) {
+      const cat4Domains = studentData.cat4_analysis.domains;
+      const domainTrends = {};
+      
+      for (const domain of cat4Domains) {
+        const domainName = domain.name;
+        const historicalValues = [];
+        
+        // Collect historical values for this domain
+        for (const history of historicalData) {
+          if (history.cat4_analysis && history.cat4_analysis.available) {
+            const historyDomain = history.cat4_analysis.domains.find(d => d.name === domainName);
+            if (historyDomain) {
+              historicalValues.push({
+                timestamp: history.timestamp || 'unknown',
+                value: historyDomain.stanine
+              });
+            }
+          }
+        }
+        
+        // Add current value
+        historicalValues.push({
+          timestamp: studentData.timestamp || 'current',
+          value: domain.stanine
+        });
+        
+        // CAT4 trends typically have fewer data points and smaller changes
+        let trendDirection = "stable";
+        let trendStrength = 0;
+        
+        if (historicalValues.length >= 2) {
+          const oldest = historicalValues[0];
+          const current = historicalValues[historicalValues.length - 1];
+          const change = current.value - oldest.value;
+          
+          // Smaller changes are significant for stanine scores
+          if (change >= 1) {
+            trendDirection = "improving";
+            trendStrength = Math.min(1.0, change / 2);
+          } else if (change <= -1) {
+            trendDirection = "declining";
+            trendStrength = Math.min(1.0, Math.abs(change) / 2);
+          } else {
+            trendDirection = "stable";
+            trendStrength = 0;
+          }
+        }
+        
+        domainTrends[domainName] = {
+          values: historicalValues,
+          direction: trendDirection,
+          strength: trendStrength
+        };
+      }
+      
+      trendAnalysis.cat4_trends = domainTrends;
+    }
+    
+    // Analyze academic trends
+    if (studentData.academic_analysis && studentData.academic_analysis.available) {
+      const subjects = studentData.academic_analysis.subjects;
+      const subjectTrends = {};
+      
+      for (const subject of subjects) {
+        const subjectName = subject.name;
+        const historicalValues = [];
+        
+        // Collect historical values for this subject
+        for (const history of historicalData) {
+          if (history.academic_analysis && history.academic_analysis.available) {
+            const historySubject = history.academic_analysis.subjects.find(s => s.name === subjectName);
+            if (historySubject) {
+              historicalValues.push({
+                timestamp: history.timestamp || 'unknown',
+                value: historySubject.stanine
+              });
+            }
+          }
+        }
+        
+        // Add current value
+        historicalValues.push({
+          timestamp: studentData.timestamp || 'current',
+          value: subject.stanine
+        });
+        
+        // Calculate trend similar to CAT4
+        let trendDirection = "stable";
+        let trendStrength = 0;
+        
+        if (historicalValues.length >= 2) {
+          const oldest = historicalValues[0];
+          const current = historicalValues[historicalValues.length - 1];
+          const change = current.value - oldest.value;
+          
+          if (change >= 1) {
+            trendDirection = "improving";
+            trendStrength = Math.min(1.0, change / 2);
+          } else if (change <= -1) {
+            trendDirection = "declining";
+            trendStrength = Math.min(1.0, Math.abs(change) / 2);
+          } else {
+            trendDirection = "stable";
+            trendStrength = 0;
+          }
+        }
+        
+        subjectTrends[subjectName] = {
+          values: historicalValues,
+          direction: trendDirection,
+          strength: trendStrength
+        };
+      }
+      
+      trendAnalysis.academic_trends = subjectTrends;
+    }
+    
+    // Calculate overall trend direction
+    const allTrends = [
+      ...Object.values(trendAnalysis.pass_trends),
+      ...Object.values(trendAnalysis.cat4_trends),
+      ...Object.values(trendAnalysis.academic_trends)
+    ];
+    
+    if (allTrends.length > 0) {
+      const improvingCount = allTrends.filter(t => t.direction === "improving").length;
+      const decliningCount = allTrends.filter(t => t.direction === "declining").length;
+      
+      if (improvingCount > decliningCount * 2) {
+        trendAnalysis.overall_direction = "strongly improving";
+      } else if (improvingCount > decliningCount) {
+        trendAnalysis.overall_direction = "moderately improving";
+      } else if (decliningCount > improvingCount * 2) {
+        trendAnalysis.overall_direction = "strongly declining";
+      } else if (decliningCount > improvingCount) {
+        trendAnalysis.overall_direction = "moderately declining";
+      } else {
+        trendAnalysis.overall_direction = "mixed or stable";
+      }
+    }
+    
+    return trendAnalysis;
+  }
+  
+  /**
+   * Calculate confidence in prediction based on data completeness
+   */
+  _calculatePredictionConfidence(studentData, historicalData) {
+    let confidence = 0.5; // Base confidence
+    
+    // Adjust based on data completeness
+    const hasPass = studentData.pass_analysis && studentData.pass_analysis.available;
+    const hasCat4 = studentData.cat4_analysis && studentData.cat4_analysis.available;
+    const hasAcademic = studentData.academic_analysis && studentData.academic_analysis.available;
+    
+    // Complete data gives higher confidence
+    if (hasPass && hasCat4 && hasAcademic) {
+      confidence += 0.3;
+    } else if ((hasPass && hasCat4) || (hasPass && hasAcademic) || (hasCat4 && hasAcademic)) {
+      confidence += 0.15;
+    }
+    
+    // Historical data gives higher confidence
+    if (historicalData && historicalData.length > 0) {
+      // More historical points = higher confidence
+      confidence += Math.min(0.2, historicalData.length * 0.05);
+    }
+    
+    // Cap confidence at 95%
+    return Math.min(0.95, confidence);
+  }
+  
+  /**
+   * Generate preventive recommendations based on risk analysis
+   */
+  _generatePreventiveRecommendations(riskLevel, riskFactors, earlyWarnings, trendAnalysis) {
+    const recommendations = [];
+    
+    // High priority recommendations for high risk
+    if (riskLevel === 'high') {
+      recommendations.push({
+        priority: 'high',
+        type: 'intervention',
+        title: 'Immediate Comprehensive Intervention',
+        description: 'Implement a multi-faceted intervention plan addressing all risk areas immediately. Schedule weekly progress monitoring.',
+        timeframe: 'Within 1 week'
+      });
+      
+      // Add specific recommendations for top risk factors
+      const topRiskFactors = riskFactors.slice(0, 3);
+      for (const risk of topRiskFactors) {
+        recommendations.push({
+          priority: 'high',
+          type: 'targeted',
+          title: `Address ${risk.factor}`,
+          description: `Implement targeted intervention for ${risk.factor} which is a significant risk area (${risk.details})`,
+          timeframe: 'Within 2 weeks'
+        });
+      }
+    }
+    // Medium priority recommendations for medium risk
+    else if (riskLevel === 'medium') {
+      recommendations.push({
+        priority: 'medium',
+        type: 'intervention',
+        title: 'Coordinated Intervention Plan',
+        description: 'Develop an intervention plan targeting the identified risk areas. Schedule bi-weekly progress monitoring.',
+        timeframe: 'Within 2 weeks'
+      });
+      
+      // Add specific recommendations for top risk factors
+      const topRiskFactors = riskFactors.slice(0, 2);
+      for (const risk of topRiskFactors) {
+        recommendations.push({
+          priority: 'medium',
+          type: 'targeted',
+          title: `Address ${risk.factor}`,
+          description: `Implement targeted support for ${risk.factor} which shows elevated risk (${risk.details})`,
+          timeframe: 'Within 3 weeks'
+        });
+      }
+    }
+    // Lower priority recommendations for borderline risk
+    else if (riskLevel === 'borderline') {
+      recommendations.push({
+        priority: 'medium',
+        type: 'monitoring',
+        title: 'Enhanced Monitoring Plan',
+        description: 'Implement closer monitoring of the identified early warning indicators. Schedule monthly check-ins.',
+        timeframe: 'Within 1 month'
       });
     }
     
-    // CAT4-based interventions
-    if (cat4Analysis.available) {
-      // Fragile learner interventions have high priority
-      if (cat4Analysis.is_fragile_learner || isFragileLearner) {
+    // Add preventive recommendations based on early warnings
+    if (earlyWarnings && earlyWarnings.length > 0) {
+      const significantWarnings = earlyWarnings.filter(w => w.level >= 0.5);
+      
+      if (significantWarnings.length > 0) {
+        const warningDomains = [...new Set(significantWarnings.map(w => w.domain))];
+        const warningDescription = significantWarnings.slice(0, 2).map(w => w.indicator).join(', ');
+        
+        recommendations.push({
+          priority: riskLevel === 'low' ? 'medium' : 'high',
+          type: 'preventive',
+          title: `Preventive Action for ${warningDomains.join('/')} Indicators`,
+          description: `Implement preventive strategies to address early warning signs in ${warningDescription}`,
+          timeframe: riskLevel === 'low' ? 'Within 6 weeks' : 'Within 3 weeks'
+        });
+      }
+    }
+    
+    // Add trend-based recommendations
+    if (trendAnalysis && trendAnalysis.available) {
+      if (trendAnalysis.overall_direction.includes('declining')) {
+        recommendations.push({
+          priority: riskLevel === 'low' ? 'low' : 'medium',
+          type: 'trend-response',
+          title: 'Address Declining Trends',
+          description: 'Implement strategies to reverse the declining trends observed across multiple assessment areas.',
+          timeframe: riskLevel === 'low' ? 'Within 2 months' : 'Within 1 month'
+        });
+      }
+    }
+    
+    // Add general preventive recommendation for low risk
+    if (riskLevel === 'low' && recommendations.length === 0) {
+      recommendations.push({
+        priority: 'low',
+        type: 'maintenance',
+        title: 'Maintain Current Support',
+        description: 'Continue current support strategies and regular monitoring to maintain positive trajectory.',
+        timeframe: 'Ongoing'
+      });
+    }
+    
+    return recommendations;
+  }
+}
+
+export default PredictiveAnalytics;
+
+  /**
+   * Generate intervention recommendations
+   */
+  /**
+ * Generate intervention recommendations based on triangulated data analysis
+ * following the instruction set mapping logic:
+ * - PASS P3/P7 at risk → Self-esteem/confidence building
+ * - P4/P6 at risk → Time management / Organization skills
+ * - P5/P8 at risk → Attendance and engagement mentoring
+ * - CAT4 Verbal SAS < 90 → Verbal reasoning / reading boosters
+ * - Fragile learner = Yes → Holistic learning support
+ * - Academic subject = Weak → Subject-specific booster modules
+ */
+generateInterventions(passAnalysis, cat4Analysis, academicAnalysis, isFragileLearner) {
+  const interventions = [];
+  
+  // PASS factor to P-number mapping (based on the instruction set)
+  const passToP = {
+    'self_regard': 'P3',
+    'perceived_learning': 'P1',
+    'attitude_teachers': 'P4',
+    'general_work_ethic': 'P6',
+    'confidence_learning': 'P2',
+    'preparedness': 'P8',
+    'emotional_control': 'P7',
+    'social_confidence': 'P9',
+    'curriculum_demand': 'P5'
+  };
+  
+  // PASS-based interventions
+  if (passAnalysis.available) {
+    passAnalysis.riskAreas.forEach(risk => {
+      const factor = risk.factor.toLowerCase().replace(' ', '_');
+      const pNumber = passToP[factor];
+      
+      // Apply intervention mapping based on P-number groups
+      if (pNumber === 'P3' || pNumber === 'P7') {
+        // Self-esteem/confidence building interventions
         interventions.push({
-          domain: 'cognitive',
-          factor: 'Fragile Learner',
-          title: 'Comprehensive Learning Support',
-          description: 'Multi-faceted approach combining cognitive scaffolding, additional processing time, and alternative assessment options.',
+          domain: 'emotional',
+          factor: risk.factor,
+          title: 'Self-Esteem Building',
+          description: 'Weekly sessions focusing on identifying and celebrating strengths. Include positive affirmation activities and reflective journaling.',
           priority: 'high'
         });
         
         interventions.push({
           domain: 'emotional',
-          factor: 'Fragile Learner',
-          title: 'Learning Skills Integration',
-          description: 'Explicit teaching of learning strategies across curriculum areas with regular monitoring and reinforcement.',
+          factor: risk.factor,
+          title: 'Success Experiences Program',
+          description: 'Create structured opportunities for the student to experience success with increasing levels of challenge to build confidence.',
+          priority: 'medium'
+        });
+      } else if (pNumber === 'P4' || pNumber === 'P6') {
+        // Time management / Organization skills interventions
+        interventions.push({
+          domain: 'behavioral',
+          factor: risk.factor,
+          title: 'Organization Skills Coaching',
+          description: 'Weekly sessions to develop organizational systems for materials, assignments, and time management.',
           priority: 'high'
         });
         
         interventions.push({
-          domain: 'cognitive',
-          factor: 'Fragile Learner',
-          title: 'Multimodal Instruction',
-          description: 'Ensure teaching incorporates visual, auditory, and kinesthetic elements to support cognitive processing.',
+          domain: 'behavioral',
+          factor: risk.factor,
+          title: 'Goal Setting Framework',
+          description: 'Implement SMART goal system with regular progress monitoring and incentives for completion.',
+          priority: 'medium'
+        });
+      } else if (pNumber === 'P5' || pNumber === 'P8') {
+        // Attendance and engagement mentoring
+        interventions.push({
+          domain: 'behavioral',
+          factor: risk.factor,
+          title: 'Engagement Mentoring',
+          description: 'Regular check-ins with a mentor to discuss attendance, engagement challenges, and develop strategies for improvement.',
+          priority: 'high'
+        });
+        
+        interventions.push({
+          domain: 'behavioral',
+          factor: risk.factor,
+          title: 'Interest-Based Learning',
+          description: 'Identify student interests and incorporate them into learning activities to increase engagement and connection to curriculum.',
+          priority: 'medium'
+        });
+      } else {
+        // Default intervention for other P-numbers
+        interventions.push({
+          domain: 'emotional',
+          factor: risk.factor,
+          title: `${risk.factor} Support`,
+          description: `Targeted support for improving ${risk.factor.toLowerCase()} through structured activities and regular feedback.`,
           priority: 'medium'
         });
       }
+    });
+  }
+  
+  // CAT4-based interventions
+  if (cat4Analysis.available) {
+    // Verbal reasoning support
+    const verbalDomain = cat4Analysis.domains.find(d => d.name.toLowerCase().includes('verbal'));
+    if (verbalDomain && verbalDomain.stanine <= 3) {
+      interventions.push({
+        domain: 'cognitive',
+        factor: 'Verbal Reasoning',
+        title: 'Verbal Skills Development',
+        description: 'Explicit instruction in vocabulary development, reading comprehension strategies, and verbal expression.',
+        priority: 'high'
+      });
       
-      // Domain-specific interventions
-      cat4Analysis.weaknessAreas.forEach(weakness => {
-        const domain = weakness.domain.toLowerCase();
-        
-        if (domain.includes('verbal')) {
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Verbal Reasoning',
-            title: 'Verbal Skills Development',
-            description: 'Explicit instruction in vocabulary development, reading comprehension strategies, and verbal expression.',
-            priority: 'high'
-          });
-          
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Verbal Reasoning',
-            title: 'Language Scaffolding',
-            description: 'Provide word banks, sentence starters, and structured discussion frameworks to support verbal processing.',
-            priority: 'medium'
-          });
-        }
-        else if (domain.includes('quantitative')) {
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Quantitative Reasoning',
-            title: 'Numeracy Intervention',
-            description: 'Targeted support for numerical operations, mathematical vocabulary, and quantitative problem-solving.',
-            priority: 'high'
-          });
-          
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Quantitative Reasoning',
-            title: 'Visual Math Strategies',
-            description: 'Incorporate visual representations, manipulatives, and real-world applications to strengthen quantitative understanding.',
-            priority: 'medium'
-          });
-        }
-        else if (domain.includes('nonverbal')) {
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Nonverbal Reasoning',
-            title: 'Pattern Recognition Training',
-            description: 'Activities focused on identifying patterns, relationships, and solving abstract problems without language.',
-            priority: 'high'
-          });
-          
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Nonverbal Reasoning',
-            title: 'Visual Thinking Tools',
-            description: 'Teach use of mind maps, graphic organizers, and visual planning tools to leverage nonverbal thinking.',
-            priority: 'medium'
-          });
-        }
-        else if (domain.includes('spatial')) {
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Spatial Reasoning',
-            title: 'Spatial Skills Activities',
-            description: 'Structured practice with mental rotation, spatial visualization, and understanding 3D relationships.',
-            priority: 'high'
-          });
-          
-          interventions.push({
-            domain: 'cognitive',
-            factor: 'Spatial Reasoning',
-            title: 'Hands-on Construction Tasks',
-            description: 'Regular opportunities to build, manipulate, and create using blocks, models, or digital design tools.',
-            priority: 'medium'
-          });
-        }
+      interventions.push({
+        domain: 'cognitive',
+        factor: 'Verbal Reasoning',
+        title: 'Reading Comprehension Boosters',
+        description: 'Targeted practice with increasingly complex texts using scaffolded comprehension techniques.',
+        priority: 'high'
       });
     }
     
-    // Academic interventions based on performance
-    if (academicAnalysis.available) {
-      academicAnalysis.subjects.forEach(subject => {
-        if (subject.level === 'weakness') {
-          interventions.push({
-            domain: 'academic',
-            factor: `${subject.name} Performance`,
-            title: `Targeted ${subject.name} Tutoring`,
-            description: `Subject-specific tutoring focusing on foundational skills and knowledge gaps identified through assessment.`,
-            priority: 'high'
-          });
-        }
-      });
-    }
-    
-    // Add performance-comparison based interventions
-    if (academicAnalysis.available && cat4Analysis.available) {
-      const comparisons = academicAnalysis.subjects.map(subject => {
-        // Find relevant CAT4 domain
-        let relevantDomain;
-        if (subject.name === 'English') {
-          relevantDomain = 'Verbal Reasoning';
-        } else if (subject.name === 'Mathematics') {
-          relevantDomain = 'Quantitative Reasoning';
-        } else if (subject.name === 'Science') {
-          relevantDomain = 'Nonverbal Reasoning';
-        } else {
-          relevantDomain = 'General';
-        }
-        
-        // Compare stanines (subject vs. CAT4)
-        const subjectStanine = subject.stanine;
-        const domainStanine = cat4Analysis.domains.find(d => d.name === relevantDomain)?.stanine || 5;
-        
-        if (subjectStanine < domainStanine - 1) {
-          return {
-            subject: subject.name,
-            underperforming: true,
-            domain: relevantDomain
-          };
-        }
-        
-        return null;
-      }).filter(Boolean);
-      
-      // Add interventions for underperforming subjects
-      comparisons.forEach(comparison => {
-        if (comparison.underperforming) {
-          interventions.push({
-            domain: 'academic',
-            factor: `${comparison.subject} Underperformance`,
-            title: 'Motivation Strategy',
-            description: `Implement interest-based learning opportunities and meaningful goal-setting to increase engagement with ${comparison.subject}.`,
-            priority: 'high'
-          });
-          
-          interventions.push({
-            domain: 'academic',
-            factor: `${comparison.subject} Underperformance`,
-            title: 'Success Coaching',
-            description: `Regular check-ins to address barriers to achievement and develop strategies for maximizing cognitive potential in ${comparison.subject}.`,
-            priority: 'medium'
-          });
-        }
-      });
-    }
-    
-    // Remove duplicates (same title and domain)
-    const uniqueInterventions = [];
-    const interventionKeys = new Set();
-    
-    interventions.forEach(intervention => {
-      const key = `${intervention.domain}:${intervention.title}`;
-      if (!interventionKeys.has(key)) {
-        interventionKeys.add(key);
-        uniqueInterventions.push(intervention);
+    // Add interventions for other cognitive domains with weaknesses
+    cat4Analysis.weaknessAreas.forEach(weakness => {
+      if (!weakness.domain.toLowerCase().includes('verbal')) { // Avoid duplication with verbal already handled
+        interventions.push({
+          domain: 'cognitive',
+          factor: weakness.domain,
+          title: `${weakness.domain} Development`,
+          description: `Targeted activities to strengthen ${weakness.domain.toLowerCase()} through explicit teaching and guided practice.`,
+          priority: 'medium'
+        });
       }
     });
-    
-    // Sort by priority
-    const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
-    uniqueInterventions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-    
-    return uniqueInterventions;
   }
+  
+  // Fragile learner intervention (high priority)
+  if (isFragileLearner) {
+    interventions.push({
+      domain: 'holistic',
+      factor: 'Fragile Learner',
+      title: 'Comprehensive Learning Support',
+      description: 'Multi-faceted approach combining cognitive scaffolding, additional processing time, and alternative assessment options.',
+      priority: 'high'
+    });
+    
+    interventions.push({
+      domain: 'holistic',
+      factor: 'Fragile Learner',
+      title: 'Confidence Building Program',
+      description: 'Integrated approach to building academic confidence through metacognitive strategies and celebrating incremental progress.',
+      priority: 'high'
+    });
+  }
+  
+  // Academic interventions based on subject weaknesses
+  if (academicAnalysis.available) {
+    academicAnalysis.subjects.forEach(subject => {
+      if (subject.level === 'weakness') {
+        interventions.push({
+          domain: 'academic',
+          factor: `${subject.name} Performance`,
+          title: `${subject.name} Booster Module`,
+          description: `Subject-specific tutoring focusing on foundational skills and knowledge gaps identified through assessment in ${subject.name}.`,
+          priority: 'high'
+        });
+      }
+    });
+  }
+  
+  // Add performance-gap interventions (comparing CAT4 potential with academic performance)
+  if (cat4Analysis.available && academicAnalysis.available) {
+    // For underperforming subjects (performing below cognitive potential)
+    const underperformingSubjects = academicAnalysis.subjects.filter(subject => {
+      if (subject.name.toLowerCase().includes('english')) {
+        // Compare English with Verbal Reasoning
+        const verbalDomain = cat4Analysis.domains.find(d => d.name.toLowerCase().includes('verbal'));
+        return verbalDomain && subject.stanine < verbalDomain.stanine - 1;
+      } else if (subject.name.toLowerCase().includes('math')) {
+        // Compare Math with Quantitative Reasoning
+        const quantDomain = cat4Analysis.domains.find(d => d.name.toLowerCase().includes('quant'));
+        return quantDomain && subject.stanine < quantDomain.stanine - 1;
+      }
+      // For other subjects, compare with average CAT4
+      const avgCat4 = cat4Analysis.domains.reduce((sum, d) => sum + d.stanine, 0) / cat4Analysis.domains.length;
+      return subject.stanine < avgCat4 - 1;
+    });
+    
+    underperformingSubjects.forEach(subject => {
+      interventions.push({
+        domain: 'academic',
+        factor: `${subject.name} Underperformance`,
+        title: 'Potential Achievement Plan',
+        description: `Targeted strategies to help student achieve their cognitive potential in ${subject.name} through motivational techniques and personalized learning approaches.`,
+        priority: 'high'
+      });
+    });
+  }
+  
+  // Filter out duplicate interventions
+  const uniqueInterventions = [];
+  const interventionKeys = new Set();
+  
+  interventions.forEach(intervention => {
+    const key = `${intervention.domain}:${intervention.title}`;
+    if (!interventionKeys.has(key)) {
+      interventionKeys.add(key);
+      uniqueInterventions.push(intervention);
+    }
+  });
+  
+  // Sort by priority
+  const priorityOrder = { 'high': 0, 'medium': 1, 'low': 2 };
+  uniqueInterventions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  
+  return uniqueInterventions;
+}
 
   // Helper conversion functions
 

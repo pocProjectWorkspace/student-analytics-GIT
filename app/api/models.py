@@ -1,147 +1,283 @@
-"""
-API data models for Student Analytics PoC
-----------------------------------------
-This module defines the Pydantic models used for API requests and responses.
-"""
-
-from typing import List, Dict, Optional, Any
+# app/api/models.py
 from pydantic import BaseModel, Field
+from typing import List, Dict, Optional, Any, Union
+from datetime import datetime
 
-
+# Assessment Models
 class PassFactor(BaseModel):
-    """Model for a single PASS factor"""
-    factor: str
+    name: str
     percentile: float
-    level: str
+    level: str  # "at-risk", "balanced", "strength"
     description: Optional[str] = None
-
 
 class PassRiskArea(BaseModel):
-    """Model for a PASS risk area"""
     factor: str
     percentile: float
-    level: str
+    threshold: Optional[float] = None
 
+class PassStrengthArea(BaseModel):
+    factor: str
+    percentile: float
 
-class PassPrediction(BaseModel):
-    """Model for overall PASS prediction"""
-    overall_risk: str
-    confidence: float
-    probabilities: Dict[str, float]
-
-
-class PassAnalysis(BaseModel):
-    """Model for complete PASS analysis"""
-    available: bool
-    factors: Optional[Dict[str, Dict[str, Any]]] = None
-    risk_areas: Optional[List[Dict[str, Any]]] = None
-    strength_areas: Optional[List[Dict[str, Any]]] = None
-    prediction: Optional[Dict[str, Any]] = None
-    message: Optional[str] = None
-
-
-class CognitiveDomain(BaseModel):
-    """Model for a CAT4 cognitive domain"""
-    domain: str
-    stanine: int
-    level: str
+class Cat4Domain(BaseModel):
+    name: str
+    stanine: float
+    percentile: Optional[float] = None
+    level: str  # "weakness", "balanced", "strength"
     description: Optional[str] = None
 
-
-class CatWeaknessArea(BaseModel):
-    """Model for a CAT4 weakness area"""
+class Cat4WeaknessArea(BaseModel):
     domain: str
-    stanine: int
-    level: str
+    stanine: float
+    description: Optional[str] = None
 
+class Cat4LearningPreference(BaseModel):
+    type: str
+    strength: float  # 0.0 to 1.0
+    description: str
+
+class AcademicSubject(BaseModel):
+    name: str
+    stanine: float
+    percentile: Optional[float] = None
+    level: str  # "weakness", "balanced", "strength" 
+    comparison: Optional[str] = None  # e.g., "Meeting Potential", "Below Potential"
+
+# Analysis Models
+class PassAnalysis(BaseModel):
+    available: bool
+    factors: List[PassFactor] = []
+    riskAreas: List[PassRiskArea] = []
+    strengthAreas: List[PassStrengthArea] = []
+    averagePercentile: Optional[float] = None
 
 class Cat4Analysis(BaseModel):
-    """Model for complete CAT4 analysis"""
     available: bool
-    domains: Optional[Dict[str, Dict[str, Any]]] = None
-    weakness_areas: Optional[List[Dict[str, Any]]] = None
-    strength_areas: Optional[List[Dict[str, Any]]] = None
+    domains: List[Cat4Domain] = []
+    weaknessAreas: List[Cat4WeaknessArea] = []
+    learningPreferences: List[Cat4LearningPreference] = []
     is_fragile_learner: bool = False
-    message: Optional[str] = None
-
-
-class SubjectAnalysis(BaseModel):
-    """Model for a subject analysis"""
-    mark: float
-    stanine: int
-    level: str
-    cat4_comparison: Optional[str] = None
-
+    averageStanine: Optional[float] = None
 
 class AcademicAnalysis(BaseModel):
-    """Model for complete academic analysis"""
     available: bool
-    subjects: Optional[Dict[str, Dict[str, Any]]] = None
-    cat4_comparison: Optional[Dict[str, str]] = None
-    average_mark: Optional[float] = None
-    message: Optional[str] = None
+    subjects: List[AcademicSubject] = []
+    averageStanine: Optional[float] = None
 
-
+# Intervention Models
 class Intervention(BaseModel):
-    """Model for an intervention recommendation"""
-    domain: str
-    factor: str
+    domain: str  # "emotional", "behavioral", "cognitive", "academic", "holistic", "integrated"
+    factor: str  # What factor is being targeted (e.g., "Self Regard", "Verbal Reasoning")
     title: str
     description: str
-    priority: str
+    priority: str  # "high", "medium", "low"
 
+class CompoundIntervention(BaseModel):
+    domain: str  # Usually "integrated"
+    factor: str  # Combined factors (e.g., "Self-Regard and Verbal Reasoning")
+    title: str
+    description: str
+    priority: str  # "high", "medium", "low"
+    impact: str  # "very high", "high", "medium", "low"
 
-class StudentAnalysis(BaseModel):
-    """Model for complete student analysis"""
+# Historical Analysis Models
+class FactorProgress(BaseModel):
+    current: float
+    previous: float
+    change: float
+    isSignificant: bool
+    direction: str  # "improved", "declined", "unchanged"
+    status: str  # "significant improvement", "slight improvement", etc.
+
+class ProgressArea(BaseModel):
+    domain: str  # "PASS", "CAT4", "Academic"
+    factor: str
+    improvement: Optional[str] = None
+    decline: Optional[str] = None
+    significance: str  # "significant", "slight"
+
+class FragileLearnerChange(BaseModel):
+    current: bool
+    previous: bool
+    hasChanged: bool
+    direction: str  # "positive", "negative", "unchanged"
+
+class InterventionEffectiveness(BaseModel):
+    domain: str
+    factor: str
+    effectiveness: str  # "effective", "partially effective", "not effective", "unknown"
+    evidence: str
+
+class PassProgressAnalysis(BaseModel):
+    available: bool
+    factorAnalysis: Optional[Dict[str, FactorProgress]] = None
+    averageChange: Optional[float] = None
+    overallStatus: Optional[str] = None
+    message: Optional[str] = None
+
+class Cat4ProgressAnalysis(BaseModel):
+    available: bool
+    domainAnalysis: Optional[Dict[str, FactorProgress]] = None
+    fragileLearnerChange: Optional[FragileLearnerChange] = None
+    averageChange: Optional[float] = None
+    overallStatus: Optional[str] = None
+    message: Optional[str] = None
+
+class AcademicProgressAnalysis(BaseModel):
+    available: bool
+    subjectAnalysis: Optional[Dict[str, FactorProgress]] = None
+    averageChange: Optional[float] = None
+    overallStatus: Optional[str] = None
+    message: Optional[str] = None
+
+class InterventionEffectivenessAnalysis(BaseModel):
+    available: bool
+    interventions: Optional[Dict[str, InterventionEffectiveness]] = None
+    message: Optional[str] = None
+
+class ProgressAnalysis(BaseModel):
+    hasBaseline: bool
+    pass_analysis: Optional[PassProgressAnalysis] = None
+    cat4_analysis: Optional[Cat4ProgressAnalysis] = None
+    academic_analysis: Optional[AcademicProgressAnalysis] = None
+    interventionEffectiveness: Optional[InterventionEffectivenessAnalysis] = None
+    improvementAreas: List[ProgressArea] = []
+    concernAreas: List[ProgressArea] = []
+    summary: str
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+# Predictive Analysis Models
+class RiskFactor(BaseModel):
+    domain: str
+    factor: str
+    level: float  # 0.0 to 1.0
+    weighted_risk: float
+    details: str
+
+class EarlyWarningIndicator(BaseModel):
+    domain: str
+    indicator: str
+    level: float  # 0.0 to 1.0
+    details: str
+
+class TrendValue(BaseModel):
+    timestamp: Union[str, datetime]
+    value: float
+
+class TrendAnalysis(BaseModel):
+    values: List[TrendValue]
+    direction: str  # "improving", "declining", "stable"
+    strength: float  # 0.0 to 1.0
+
+class OverallTrendAnalysis(BaseModel):
+    available: bool
+    pass_trends: Optional[Dict[str, TrendAnalysis]] = None
+    cat4_trends: Optional[Dict[str, TrendAnalysis]] = None
+    academic_trends: Optional[Dict[str, TrendAnalysis]] = None
+    overall_direction: str
+    message: Optional[str] = None
+
+class PreventiveRecommendation(BaseModel):
+    priority: str  # "high", "medium", "low"
+    type: str  # "intervention", "monitoring", "preventive", "trend-response", "maintenance"
+    title: str
+    description: str
+    timeframe: str
+
+class RiskPrediction(BaseModel):
+    overall_risk_score: float  # 0.0 to 1.0
+    risk_level: str  # "high", "medium", "borderline", "low"
+    risk_factors: List[RiskFactor] = []
+    early_indicators: List[EarlyWarningIndicator] = []
+    trend_analysis: OverallTrendAnalysis
+    time_to_intervention: str  # "urgent", "soon", "monitor", "not urgent"
+    confidence: float  # 0.0 to 1.0 - confidence in the prediction
+    recommendations: List[PreventiveRecommendation] = []
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+# Student Data Model
+class StudentData(BaseModel):
     student_id: str
     name: str
-    grade: str
+    grade: int
+    section: Optional[str] = None
     pass_analysis: PassAnalysis
     cat4_analysis: Cat4Analysis
     academic_analysis: AcademicAnalysis
-    interventions: List[Intervention]
+    interventions: List[Intervention] = []
+    compoundInterventions: List[CompoundIntervention] = []
+    progressAnalysis: Optional[ProgressAnalysis] = None
+    riskPrediction: Optional[RiskPrediction] = None
+    is_fragile_learner: bool = False
+    timestamp: datetime = Field(default_factory=datetime.now)
 
+# Cohort Analysis Models
+class GradeDistribution(BaseModel):
+    grade: int
+    count: int
+    fragile_learners: int
+    high_risk: int
+    interventions_needed: int
 
-class RiskItem(BaseModel):
-    """Model for a risk area in the dashboard"""
+class RiskDistribution(BaseModel):
+    risk_level: str
+    count: int
+    percentage: float
+
+class PassRiskDistribution(BaseModel):
     factor: str
-    level: str
+    count: int
+    average_percentile: float
 
+class Cat4WeaknessDistribution(BaseModel):
+    domain: str
+    count: int
+    average_stanine: float
 
-class DashboardStudent(BaseModel):
-    """Model for a student in the dashboard"""
-    id: str
-    name: str
-    risk_count: int
-    risk_areas: List[RiskItem]
-    intervention_count: int
+class AcademicWeaknessDistribution(BaseModel):
+    subject: str
+    count: int
+    average_stanine: float
 
+class InterventionDistribution(BaseModel):
+    domain: str
+    count: int
+    high_priority: int
+    effective: Optional[int] = None
+    partially_effective: Optional[int] = None
+    not_effective: Optional[int] = None
 
-class GradeSummary(BaseModel):
-    """Model for grade-level summary statistics"""
+class CohortStatistics(BaseModel):
     total_students: int
-    at_risk_count: int
-    fragile_learners_count: int
-    academic_concerns_count: int
+    grades: Dict[int, int]
+    riskLevels: Dict[str, int]
+    fragileLearnersCount: int
+    passRiskFactors: Dict[str, int]
+    cat4WeaknessAreas: Dict[str, int]
+    academicWeaknesses: Dict[str, int]
+    interventionsByDomain: Dict[str, int]
+    
+    # Additional statistics for detailed cohort analysis
+    grade_distribution: List[GradeDistribution] = []
+    risk_distribution: List[RiskDistribution] = []
+    pass_risk_distribution: List[PassRiskDistribution] = []
+    cat4_weakness_distribution: List[Cat4WeaknessDistribution] = []
+    academic_weakness_distribution: List[AcademicWeaknessDistribution] = []
+    intervention_distribution: List[InterventionDistribution] = []
+    
+    # Timestamp for caching purposes
+    timestamp: datetime = Field(default_factory=datetime.now)
 
+# API Response Models
+class StudentResponse(BaseModel):
+    student: StudentData
 
-class RiskDataItem(BaseModel):
-    """Model for a student in the risk heatmap"""
-    id: str
-    name: str
-    section: str
-    riskCount: int
+class StudentsListResponse(BaseModel):
+    students: List[StudentData]
+    total_count: int
 
+class CohortStatsResponse(BaseModel):
+    stats: CohortStatistics
 
-class UploadResponse(BaseModel):
-    """Model for file upload response"""
-    status: str
-    message: str
-    students_processed: int
-    session_id: str
-
-
-class SampleDataResponse(BaseModel):
-    """Model for sample data response"""
-    sample_files: Dict[str, str]
-    file_formats: Dict[str, str]
+# Database Models (for app/database/models.py)
+# These would be implemented in SQLAlchemy
