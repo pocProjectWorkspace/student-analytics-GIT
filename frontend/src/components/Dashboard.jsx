@@ -2,11 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchStudentsData, fetchCohortStats } from '../services/api';
-import PredictiveAnalytics from '../utils/PredictiveAnalytics';
-import CohortDistributionChart from './charts/CohortDistributionChart';
-import RiskFactorsBarChart from './charts/RiskFactorsBarChart';
-import InterventionEffectivenessChart from './charts/InterventionEffectivenessChart';
-import StudentProgressTracking from './StudentProgressTracking';
+import PredictiveAnalytics from '../utils/analytics/PredictiveAnalytics';
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -870,26 +866,7 @@ function Dashboard() {
                 </select>
               </div>
             </div>
-            
-            <div className="cohort-charts">
-              <div className="chart-container">
-                <h3>Cohort Distribution</h3>
-                <CohortDistributionChart 
-                  cohorts={cohorts} 
-                  primaryFilter={selectedCohortFilter}
-                  secondaryFilter={selectedSecondaryFilter}
-                />
-              </div>
-              
-              <div className="chart-container">
-                <h3>Risk Factors by Cohort</h3>
-                <RiskFactorsBarChart 
-                  cohorts={cohorts} 
-                  primaryFilter={selectedCohortFilter}
-                />
-              </div>
-            </div>
-            
+
             <div className="cohort-list">
               <h3>Cohort Details</h3>
               

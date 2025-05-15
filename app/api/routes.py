@@ -2,8 +2,10 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, Path
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 
-from app.database.db import get_db
+# Fix the import here - change from app.database.db to app.database.database
+from app.database.database import get_db
 from app.database import schemas, models
 from app.api.models import (
     StudentData, StudentsListResponse, CohortStatsResponse,

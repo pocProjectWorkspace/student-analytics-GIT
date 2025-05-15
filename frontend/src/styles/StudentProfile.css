@@ -984,4 +984,38 @@
   .interventions-list-container {
     grid-template-columns: 1fr;
   }
+
+  .chart-card {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.chart-card h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.historical-trend-chart .factor-selector button:hover {
+  filter: brightness(0.95);
+}
+
+.historical-trend-chart .factor-selector button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.3);
+}
+
+.risk-level-legend {
+  display: flex; 
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin-top: 10px;
+}
+
 }

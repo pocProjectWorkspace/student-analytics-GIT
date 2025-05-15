@@ -6,8 +6,8 @@ import RadarChart from './charts/RadarChart';
 import CognitiveBarChart from './charts/CognitiveBarChart';
 import AcademicChart from './charts/AcademicChart';
 import InterventionsList from './InterventionsList';
-import ProgressTracker from '../utils/ProgressTracker';
-import PredictiveAnalytics from '../utils/PredictiveAnalytics';
+import ProgressTracker from "../utils/analytics/ProgressTracker";
+import PredictiveAnalytics from "../utils/analytics/PredictiveAnalytics";
 import HistoricalTrendChart from './charts/HistoricalTrendChart';
 import RiskIndicatorChart from './charts/RiskIndicatorChart';
 
@@ -1087,15 +1087,55 @@ function InterventionsTab({ studentData, progressAnalysis }) {
 
 // Progress History Tab Component
 function ProgressHistoryTab({ studentData, historicalData, progressAnalysis }) {
-  if (!progressAnalysis || !progressAnalysis.hasBaseline) {
-    return (
-      <div className="no-data-container">
-        <h3>No Historical Data Available</h3>
-        <p>There is not enough historical data available to analyze progress for this student.</p>
-      </div>
-    );
-  }
-  
+  const prepareTrendData = () => {
+    if (!historicalData || historicalData.length === 0) return [];
+    
+    const trendData = [];
+    
+    // Process PASS trends
+    historicalData.forEach(snapshot => {
+      const timestamp = new Date(snapshot.timestamp);
+      
+      // Add PASS factor trends
+      if (snapshot.pass_analysis?.available) {
+        snapshot.pass_analysis.factors.forEach(factor => {
+          trendData.push({
+            factor: factor.name,
+            value: factor.percentile,
+            timestamp: timestamp,
+            domain: 'PASS'
+          });
+        });
+      }
+      
+      // Add CAT4 domain trends
+      if (snapshot.cat4_analysis?.available) {
+        snapshot.cat4_analysis.domains.forEach(domain => {
+          trendData.push({
+            factor: domain.name,
+            value: domain.stanine,
+            timestamp: timestamp,
+            domain: 'CAT4'
+          });
+        });
+      }
+      
+      // Add academic subject trends
+      if (snapshot.academic_analysis?.available) {
+        snapshot.academic_analysis.subjects.forEach(subject => {
+          trendData.push({
+            factor: subject.name,
+            value: subject.stanine,
+            timestamp: timestamp,
+            domain: 'Academic'
+          });
+        });
+      }
+    });
+    
+    return trendData;
+  };
+
   return (
     <>
       <h2>Progress Analysis</h2>
@@ -1107,10 +1147,40 @@ function ProgressHistoryTab({ studentData, historicalData, progressAnalysis }) {
       
       <div className="progress-trends">
         <h3>Progress Over Time</h3>
-        <div className="trends-chart">
+        
+        {/* PASS Trends */}
+        <div className="chart-card">
           <HistoricalTrendChart 
-            currentData={studentData} 
-            historicalData={historicalData} 
+            trendData={prepareTrendData().filter(d => d.domain === 'PASS')} 
+            title="PASS Factors Trends" 
+            domain="PASS"
+            metric="percentile"
+            thresholdValue={45} // Risk threshold
+            formatValue={(val) => `${val}%`}
+          />
+        </div>
+        
+        {/* CAT4 Trends */}
+        <div className="chart-card">
+          <HistoricalTrendChart 
+            trendData={prepareTrendData().filter(d => d.domain === 'CAT4')} 
+            title="CAT4 Domains Trends" 
+            domain="CAT4"
+            metric="stanine"
+            thresholdValue={3.5} // Weakness threshold
+            formatValue={(val) => `Stanine ${val}`}
+          />
+        </div>
+        
+        {/* Academic Trends */}
+        <div className="chart-card">
+          <HistoricalTrendChart 
+            trendData={prepareTrendData().filter(d => d.domain === 'Academic')} 
+            title="Academic Performance Trends" 
+            domain="Academic"
+            metric="stanine"
+            thresholdValue={3.5} // Weakness threshold
+            formatValue={(val) => `Stanine ${val}`}
           />
         </div>
       </div>
@@ -1272,14 +1342,15 @@ function ProgressHistoryTab({ studentData, historicalData, progressAnalysis }) {
 
 // Risk Prediction Tab Component
 function RiskPredictionTab({ studentData, riskPrediction }) {
-  if (!riskPrediction) {
-    return (
-      <div className="no-data-container">
-        <h3>No Risk Assessment Available</h3>
-        <p>Risk assessment data is not available for this student.</p>
-      </div>
-    );
-  }
+  const prepareRiskFactors = () => {
+    if (!riskPrediction || !riskPrediction.risk_factors) return [];
+    return riskPrediction.risk_factors;
+  };
+
+  const prepareWarningIndicators = () => {
+    if (!riskPrediction || !riskPrediction.early_indicators) return [];
+    return riskPrediction.early_indicators;
+  };
   
   return (
     <>
@@ -1317,7 +1388,23 @@ function RiskPredictionTab({ studentData, riskPrediction }) {
       </div>
       
       <div className="risk-visualization">
-        <RiskIndicatorChart riskPrediction={riskPrediction} />
+        <div className="chart-card">
+          <RiskIndicatorChart 
+            riskFactors={prepareRiskFactors()} 
+            title="Risk Factor Analysis"
+            thresholds={{ high: 0.7, medium: 0.4, low: 0.2 }}
+          />
+        </div>
+        
+        {prepareWarningIndicators().length > 0 && (
+          <div className="chart-card">
+            <RiskIndicatorChart 
+              riskFactors={prepareWarningIndicators()} 
+              title="Early Warning Indicators" 
+              thresholds={{ high: 0.5, medium: 0.3, low: 0.1 }}
+            />
+          </div>
+        )}
       </div>
       
       {/* Risk Factors */}
