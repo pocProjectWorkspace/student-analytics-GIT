@@ -1,21 +1,10 @@
-"""
-Student Analytics PoC - Main Application
-----------------------------------------
-This is the main entry point for the Student Analytics Proof of Concept application.
-It sets up the FastAPI application, routes, middleware, and database.
-"""
+# Update your main.py file in your backend to properly configure CORS
 
-import os
-from fastapi import FastAPI, Request, Depends
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-
-# Fix imports to use the app package prefix
+import os
 from app.api.routes import router as api_router
-from app.database.database import engine, get_db
+from app.database.database import engine
 from app.database.models import Base
 from app.database.init_db import init_db
 
@@ -29,14 +18,18 @@ app = FastAPI(
 # Initialize database tables
 init_db()
 
-# Configure CORS
+# Configure CORS - This is the critical part
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    # Allow your frontend URL explicitly
+    allow_origins=["http://localhost:5173"],  # Your frontend URL
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
+
+# Include API routes
+app.include_router(api_router, prefix="/api")
 
 # Mount static files
 static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")

@@ -1,7 +1,7 @@
-// Enhanced StudentProfile.jsx with triangulated student profiling
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchStudentData, downloadStudentReport } from '../services/api';
+// Import API module as default import only
+import api from '../services/api';
 import RadarChart from './charts/RadarChart';
 import CognitiveBarChart from './charts/CognitiveBarChart';
 import AcademicChart from './charts/AcademicChart';
@@ -11,16 +11,37 @@ import PredictiveAnalytics from "../utils/analytics/PredictiveAnalytics";
 import HistoricalTrendChart from './charts/HistoricalTrendChart';
 import RiskIndicatorChart from './charts/RiskIndicatorChart';
 
+// Create wrapper functions to maintain compatibility with existing code
+const fetchStudentData = (studentId) => {
+  return api.fetchStudentDetails(studentId);
+};
+
+const downloadStudentReport = (studentId) => {
+  return api.downloadStudentReport(studentId);
+};
+
 // Tab enumeration for better readability
 const TABS = {
   OVERVIEW: 'overview',
   PASS: 'pass',
   CAT4: 'cat4',
-  ACADEMIC: 'academic',
+  ACADEMIC: 'academic', 
   INTERVENTIONS: 'interventions',
   HISTORY: 'history',
   PREDICTION: 'prediction'
 };
+
+// Use destructuring at top level for functions not defined as wrappers above
+const { 
+  fetchStudentDetails, 
+  fetchStudentProgress,
+  fetchRiskPrediction,
+  saveStudentNotes,
+  addIntervention,
+  updateIntervention,
+  shareStudentReport
+} = api;
+
 
 function StudentProfile() {
   const { studentId } = useParams();

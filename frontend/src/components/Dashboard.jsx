@@ -1,8 +1,19 @@
 // Enhanced Dashboard.jsx with cohort analysis functionality
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchStudentsData, fetchCohortStats } from '../services/api';
 import PredictiveAnalytics from '../utils/analytics/PredictiveAnalytics';
+
+// Fix the imports for API services to match your implementation
+import api from '../services/api';
+
+// Define the functions that match the current usage in the component
+const fetchStudentsData = async () => {
+  return api.fetchStudents();
+};
+
+const fetchCohortStats = async () => {
+  return api.fetchCohortStats();
+};
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -981,9 +992,14 @@ function Dashboard() {
               
               <div className="interventions-chart">
                 <h3>Intervention Effectiveness</h3>
-                <InterventionEffectivenessChart 
+                {/* Comment out or dynamically import to avoid component reference errors */}
+                {/* <InterventionEffectivenessChart 
                   data={analyzeInterventionEffectiveness()} 
-                />
+                /> */}
+                <div className="chart-placeholder">
+                  {/* You can implement this component or show placeholder */}
+                  Chart showing intervention effectiveness by domain
+                </div>
               </div>
             </div>
             
@@ -1010,10 +1026,15 @@ function Dashboard() {
             
             <div className="intervention-progress">
               <h3>Student Progress Tracking</h3>
-              <StudentProgressTracking 
+              {/* Comment out or dynamically import to avoid component reference errors */}
+              {/* <StudentProgressTracking 
                 students={filteredStudents}
                 showingStudents={filteredStudents.slice(0, 10)} // For performance, only show first 10
-              />
+              /> */}
+              <div className="progress-placeholder">
+                {/* You can implement this component or show placeholder */}
+                Progress tracking for selected students
+              </div>
             </div>
           </div>
         )}
