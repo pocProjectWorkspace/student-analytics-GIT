@@ -1,7 +1,7 @@
 // Updated api.js with downloadStudentReport and all required functions
 
 // Base API configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
 
 /**
  * General API request handler with error handling
@@ -56,7 +56,7 @@ export const fetchStudentDetails = async (studentId) => {
  * @returns {Promise<Object>} Aggregated cohort statistics
  */
 export const fetchCohortStats = async () => {
-  return apiRequest('/cohort/stats');
+  return apiRequest('/stats/cohort');
 };
 
 /**

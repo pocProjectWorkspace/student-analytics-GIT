@@ -54,80 +54,74 @@ function StudentProfile() {
   const [riskPrediction, setRiskPrediction] = useState(null);
   
   useEffect(() => {
-    const loadStudentData = async () => {
-      setLoading(true);
-      try {
+  const loadStudentData = async () => {
+    setLoading(true);
+    try {
         // Load current student data
-        const data = await fetchStudentData(studentId);
-        setStudentData(data);
+        const data = await fetchStudentDetails(studentId);
+        setStudentData(data.student); // Make sure to extract .student from the response
         
-        // Load historical data (would come from API in production)
-        // For demo, we'll simulate this with localStorage
-        const loadHistoricalData = () => {
-          try {
-            const storedHistory = localStorage.getItem(`history_${studentId}`);
-            return storedHistory ? JSON.parse(storedHistory) : [];
-          } catch (error) {
-            console.error('Error loading historical data:', error);
-            return [];
-          }
-        };
-        
-        const history = loadHistoricalData();
-        setHistoricalData(history);
-        
-        // Analyze progress if historical data exists
-        if (history.length > 0) {
-          const progressTracker = new ProgressTracker();
-          const progress = progressTracker.trackProgress(data, history[history.length - 1]);
-          setProgressAnalysis(progress);
+        // Try to load historical data (would come from API in production)
+      try {
+        const historicalResponse = await fetchStudentProgress(studentId);
+        if (historicalResponse) {
+          setHistoricalData(historicalResponse.history || []);
+          setProgressAnalysis(historicalResponse);
         }
-        
-        // Generate risk prediction
-        const predictiveAnalytics = new PredictiveAnalytics();
-        const prediction = predictiveAnalytics.predictRisk(data, history);
-        setRiskPrediction(prediction);
-        
-      } catch (error) {
-        console.error('Error loading student data:', error);
-        
-        // Fallback to localStorage if API fails
-        try {
-          const localData = localStorage.getItem('studentData');
-          if (localData) {
-            const parsedData = JSON.parse(localData);
-            const student = parsedData.find(s => s.student_id === studentId);
-            if (student) {
-              setStudentData(student);
-              
-              // Try to load historical data as well
-              const storedHistory = localStorage.getItem(`history_${studentId}`);
-              const history = storedHistory ? JSON.parse(storedHistory) : [];
-              setHistoricalData(history);
-              
-              // Only analyze progress if we have historical data
-              if (history.length > 0) {
-                const progressTracker = new ProgressTracker();
-                const progress = progressTracker.trackProgress(student, history[history.length - 1]);
-                setProgressAnalysis(progress);
-              }
-              
-              // Generate risk prediction
-              const predictiveAnalytics = new PredictiveAnalytics();
-              const prediction = predictiveAnalytics.predictRisk(student, history);
-              setRiskPrediction(prediction);
-            }
-          }
-        } catch (localError) {
-          console.error('Error loading from localStorage:', localError);
-        }
-      } finally {
-        setLoading(false);
+      } catch (historyError) {
+        console.warn('Could not load historical data:', historyError);
+        // Fallback to empty history
+        setHistoricalData([]);
       }
-    };
-    
-    loadStudentData();
-  }, [studentId]);
+      
+      // Try to load risk prediction
+      try {
+        const predictionResponse = await fetchRiskPrediction(studentId);
+        if (predictionResponse) {
+          setRiskPrediction(predictionResponse);
+        }
+      } catch (predictionError) {
+        console.warn('Could not load risk prediction:', predictionError);
+      }
+      
+    } catch (error) {
+      console.error('Error loading student data:', error);
+      
+      // Fallback to localStorage if API fails
+      try {
+        // Check if we have any demo data in localStorage
+        const localData = localStorage.getItem('demoStudentData');
+        if (localData) {
+          const parsedData = JSON.parse(localData);
+          const student = parsedData.find(s => s.student_id === studentId) || 
+                        parsedData[0]; // Fallback to first student if ID not found
+          
+          if (student) {
+            setStudentData(student);
+            console.log('Using demo data from localStorage');
+          } else {
+            // No matching student found
+            console.error('No matching student found in localStorage');
+          }
+        } else {
+          // Create and save demo data
+          const demoData = createDemoStudentData();
+          localStorage.setItem('demoStudentData', JSON.stringify(demoData));
+          
+          const demoStudent = demoData.find(s => s.student_id === studentId) || demoData[0];
+          setStudentData(demoStudent);
+          console.log('Created and using demo data');
+        }
+      } catch (localError) {
+        console.error('Error loading from localStorage:', localError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  loadStudentData();
+}, [studentId]);
   
   const handleDownloadReport = async () => {
     try {

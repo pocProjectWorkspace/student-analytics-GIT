@@ -39,7 +39,8 @@ function Dashboard() {
       setLoading(true);
       try {
         // Load students data
-        const studentsData = await fetchStudentsData();
+        const response = await fetchStudentsData();
+        const studentsData = response.students || [];
         
         // Calculate risk factors for each student
         const predictiveAnalytics = new PredictiveAnalytics();

@@ -1,32 +1,36 @@
-# Update your main.py file in your backend to properly configure CORS
+# main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
+from sqlalchemy.orm import Session
 import os
+
 from app.api.routes import router as api_router
-from app.database.database import engine
+from app.database.database import engine, get_db
 from app.database.models import Base
 from app.database.init_db import init_db
 
-# Create FastAPI application
+# Create FastAPI application (⚠️ Move this line UP before applying middleware)
 app = FastAPI(
     title="Student Analytics PoC",
     description="A proof of concept for AI-driven student analytics and intervention recommendations",
     version="0.1.0"
 )
 
-# Initialize database tables
-init_db()
-
-# Configure CORS - This is the critical part
+# ✅ Apply CORS middleware AFTER app is instantiated
 app.add_middleware(
     CORSMiddleware,
-    # Allow your frontend URL explicitly
-    allow_origins=["http://localhost:5173"],  # Your frontend URL
+    allow_origins=["*"],  # Or restrict to ["http://localhost:5173"]
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# Initialize database tables
+init_db()
 
 # Include API routes
 app.include_router(api_router, prefix="/api")
@@ -39,9 +43,6 @@ if os.path.exists(static_dir):
 # Setup Jinja2 templates for server-side rendering
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
 templates = Jinja2Templates(directory=template_dir) if os.path.exists(template_dir) else None
-
-# Include API routes
-app.include_router(api_router, prefix=os.getenv("API_PREFIX", "/api"))
 
 # Basic routes for server-side pages
 @app.get("/", response_class=HTMLResponse)
@@ -62,7 +63,6 @@ async def upload_page(request: Request):
 async def health_check(db: Session = Depends(get_db)):
     """Health check endpoint for monitoring"""
     try:
-        # Verify database connection
         db.execute("SELECT 1")
         return {"status": "healthy", "database": "connected"}
     except Exception as e:

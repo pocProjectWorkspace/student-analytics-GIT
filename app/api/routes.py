@@ -1,7 +1,9 @@
 # app/api/routes.py
-from fastapi import APIRouter, HTTPException, Depends, Query, Path
+from fastapi import APIRouter, HTTPException, Depends, Query, Path, FastAPI
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from fastapi.encoders import jsonable_encoder
+from app.api.models import CohortStatistics as CohortStatsModel
 from datetime import datetime
 
 # Fix the import here - change from app.database.db to app.database.database
@@ -19,7 +21,19 @@ from app.engine.analytics import (
 
 router = APIRouter()
 
-@router.get("/students/", response_model=StudentsListResponse)
+# Define setup_cors function but we won't use it directly 
+# since we're configuring CORS in main.py
+def setup_cors(app: FastAPI):
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=".*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        )
+
+@router.get("/students", response_model=StudentsListResponse)
 async def get_students(
     grade: Optional[int] = None,
     risk_level: Optional[str] = None,
@@ -75,8 +89,7 @@ async def get_students(
             
             query = query.filter(models.Student.id.notin_(risk_student_ids))
     
-    # Similar filters can be applied for CAT4 and academic weakness
-    
+     
     # Execute query with pagination
     students_db = query.offset(skip).limit(limit).all()
     total_count = query.count()
@@ -143,22 +156,35 @@ async def get_student(
     # Return the response
     return StudentResponse(student=student_data)
 
-@router.get("/stats/cohort", response_model=CohortStatsResponse)
-async def get_cohort_stats(
-    grade: Optional[int] = None,
-    db: Session = Depends(get_db)
-):
-    """
-    Get cohort statistics
-    """
-    # Check if we have recent stats in the database
-    stats_db = db.query(models.CohortStatistics).order_by(
-        models.CohortStatistics.date.desc()
-    ).first()
-    
-    # If recent stats exist, return them
-    if stats_db and (datetime.now() - stats_db.date).days < 1:
-        return CohortStatsResponse(stats=stats_db)
+
+@router.get("/api/stats/cohort", response_model=CohortStatsResponse)
+def get_cohort_stats(db: Session = Depends(get_db)):
+    stats_db = db.query(CohortStatistics).first()
+    if not stats_db:
+        # Optionally handle null DB case
+        raise HTTPException(status_code=404, detail="No cohort stats found.")
+
+    raw_data = jsonable_encoder(stats_db)
+
+    # Print for debug
+    print("DEBUG: stats_db raw:", raw_data)
+
+    # Inject default values for required missing fields
+    default_fields = {
+        "riskLevels": {},
+        "fragileLearnersCount": 0,
+        "passRiskFactors": {},
+        "cat4WeaknessAreas": {},
+        "academicWeaknesses": {},
+        "interventionsByDomain": {}
+    }
+
+    for field, default in default_fields.items():
+        if field not in raw_data or raw_data[field] is None:
+            raw_data[field] = default
+
+    validated_stats = CohortStatsModel(**raw_data)
+    return CohortStatsResponse(stats=validated_stats)
     
     # Otherwise, generate new stats
     stats = generate_cohort_stats(db, grade)
@@ -183,6 +209,7 @@ async def get_cohort_stats(
     db.add(new_stats_db)
     db.commit()
     
+    stats = CohortStatsModel(**jsonable_encoder(stats_db))
     return CohortStatsResponse(stats=stats)
 
 @router.post("/students/{student_id}/interventions", response_model=StudentResponse)
