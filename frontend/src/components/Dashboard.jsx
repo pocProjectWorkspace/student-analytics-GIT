@@ -71,7 +71,7 @@ function Dashboard() {
         
         // Load cohort statistics
         const stats = await fetchCohortStats();
-        setCohortStats(stats);
+        setCohortStats(stats?.stats || stats);
       } catch (err) {
         console.error('Error loading dashboard data:', err);
         setError('Failed to load data. Please try again.');
@@ -609,7 +609,7 @@ function Dashboard() {
             onChange={(e) => handleFilterChange('grade', e.target.value)}
           >
             <option value="all">All Grades</option>
-            {cohortStats && Object.keys(cohortStats.grades).sort().map(grade => (
+            {cohortStats && cohortStats.grades && Object.keys(cohortStats.grades).sort().map(grade => (
               <option key={grade} value={grade}>Grade {grade}</option>
             ))}
           </select>
@@ -1016,7 +1016,7 @@ function Dashboard() {
                       <div className="domain-count">{count}</div>
                       <div className="domain-percentage">
                         {Math.round((count / 
-                          Object.values(cohortStats.interventionsByDomain)
+                          Object.values(cohortStats?.interventionsByDomain || {})
                             .reduce((sum, c) => sum + c, 0)
                         ) * 100)}%
                       </div>

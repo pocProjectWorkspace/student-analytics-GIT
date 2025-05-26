@@ -1,4 +1,4 @@
-# app/database/models.py
+# app/database/models.py - Corrected for Excel Structure
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -32,7 +32,21 @@ class PassAssessment(Base):
     id = Column(Integer, primary_key=True)
     student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
     assessment_date = Column(DateTime, default=datetime.now)
+    
+    # Individual PASS factor percentiles (based on Excel columns)
+    perceived_learning_capability = Column(Float, nullable=True)
+    self_regard_as_learner = Column(Float, nullable=True)
+    preparedness_for_learning = Column(Float, nullable=True)
+    general_work_ethic = Column(Float, nullable=True)
+    confidence_in_learning = Column(Float, nullable=True)
+    feelings_about_school = Column(Float, nullable=True)
+    attitudes_to_teachers = Column(Float, nullable=True)
+    attitudes_to_attendance = Column(Float, nullable=True)
+    response_to_curriculum = Column(Float, nullable=True)
+    
+    # Calculated average
     average_percentile = Column(Float, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -61,22 +75,34 @@ class CAT4Assessment(Base):
     id = Column(Integer, primary_key=True)
     student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
     assessment_date = Column(DateTime, default=datetime.now)
+    
+    # Individual CAT4 domain stanines (based on Excel columns)
+    verbal_sas = Column(Float, nullable=True)
+    quantitative_sas = Column(Float, nullable=True)
+    nonverbal_sas = Column(Float, nullable=True)
+    spatial_sas = Column(Float, nullable=True)
+    mean_sas = Column(Float, nullable=True)
+    
+    # Verbal Spatial Profile
+    verbal_spatial_profile = Column(String(100), nullable=True)
+    
+    # Fragile learner determination
     is_fragile_learner = Column(Boolean, default=False)
     average_stanine = Column(Float, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
     # Relationships
     student = relationship("Student", back_populates="cat4_assessment")
     domains = relationship("CAT4Domain", back_populates="assessment")
-    learning_preferences = relationship("LearningPreference", back_populates="assessment")
 
 class CAT4Domain(Base):
     __tablename__ = 'cat4_domains'
     
     id = Column(Integer, primary_key=True)
     assessment_id = Column(Integer, ForeignKey('cat4_assessments.id'), nullable=False)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=False)  # "Verbal", "Quantitative", "Non-verbal", "Spatial"
     stanine = Column(Float, nullable=False)
     percentile = Column(Float, nullable=True)
     level = Column(String(50), nullable=False)  # "weakness", "balanced", "strength"
@@ -87,20 +113,6 @@ class CAT4Domain(Base):
     # Relationships
     assessment = relationship("CAT4Assessment", back_populates="domains")
 
-class LearningPreference(Base):
-    __tablename__ = 'learning_preferences'
-    
-    id = Column(Integer, primary_key=True)
-    assessment_id = Column(Integer, ForeignKey('cat4_assessments.id'), nullable=False)
-    type = Column(String(100), nullable=False)
-    strength = Column(Float, nullable=False)  # 0.0 to 1.0
-    description = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
-    # Relationships
-    assessment = relationship("CAT4Assessment", back_populates="learning_preferences")
-
 class AcademicAssessment(Base):
     __tablename__ = 'academic_assessments'
     
@@ -108,7 +120,26 @@ class AcademicAssessment(Base):
     student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
     assessment_date = Column(DateTime, default=datetime.now)
     term = Column(String(50), nullable=True)  # e.g., "Term 1", "Final"
+    
+    # Individual subject data (based on Excel columns)
+    english_internal_marks = Column(Float, nullable=True)
+    english_internal_stanine = Column(Float, nullable=True)
+    english_asset_stanine = Column(Float, nullable=True)
+    english_comparison = Column(String(100), nullable=True)
+    
+    maths_internal_marks = Column(Float, nullable=True)
+    maths_internal_stanine = Column(Float, nullable=True)
+    maths_asset_stanine = Column(Float, nullable=True)
+    maths_comparison = Column(String(100), nullable=True)
+    
+    science_internal_marks = Column(Float, nullable=True)
+    science_internal_stanine = Column(Float, nullable=True)
+    science_asset_stanine = Column(Float, nullable=True)
+    science_comparison = Column(String(100), nullable=True)
+    
+    # Calculated average
     average_stanine = Column(Float, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     
@@ -121,8 +152,10 @@ class AcademicSubject(Base):
     
     id = Column(Integer, primary_key=True)
     assessment_id = Column(Integer, ForeignKey('academic_assessments.id'), nullable=False)
-    name = Column(String(100), nullable=False)
-    stanine = Column(Float, nullable=False)
+    name = Column(String(100), nullable=False)  # "English", "Maths", "Science"
+    internal_marks = Column(Float, nullable=True)
+    internal_stanine = Column(Float, nullable=False)
+    asset_stanine = Column(Float, nullable=True)
     percentile = Column(Float, nullable=True)
     level = Column(String(50), nullable=False)  # "weakness", "balanced", "strength"
     comparison = Column(String(100), nullable=True)  # e.g., "Meeting Potential", "Below Potential"
@@ -221,16 +254,12 @@ class CohortStatistics(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 class HistoricalStudentSnapshot(Base):
-    """
-    This table stores complete snapshots of student data over time,
-    allowing for historical analysis and tracking changes.
-    """
     __tablename__ = 'historical_student_snapshots'
     
     id = Column(Integer, primary_key=True)
     student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
     snapshot_date = Column(DateTime, default=datetime.now)
-    snapshot_reason = Column(String(100), nullable=True)  # e.g., "Term Assessment", "Annual Review", "Intervention Follow-up"
+    snapshot_reason = Column(String(100), nullable=True)
     
     # Complete student data snapshot in JSON format
     student_data = Column(JSON, nullable=False)
@@ -244,56 +273,3 @@ class HistoricalStudentSnapshot(Base):
     
     # Relationship
     student = relationship("Student")
-
-# Association tables for many-to-many relationships
-
-class StudentCohort(Base):
-    """
-    Represents membership of students in cohorts/groups
-    """
-    __tablename__ = 'student_cohorts'
-    
-    id = Column(Integer, primary_key=True)
-    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
-    cohort_name = Column(String(100), nullable=False)  # e.g., "Grade 9 High Risk", "Fragile Learners Term 2"
-    cohort_type = Column(String(50), nullable=False)  # e.g., "grade", "risk_level", "custom"
-    created_at = Column(DateTime, default=datetime.now)
-    
-    # Relationship
-    student = relationship("Student")
-
-class InterventionGroup(Base):
-    """
-    Represents groups of interventions applied to multiple students
-    """
-    __tablename__ = 'intervention_groups'
-    
-    id = Column(Integer, primary_key=True)
-    name = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
-    intervention_type = Column(String(50), nullable=False)  # e.g., "academic", "emotional", "mixed"
-    target_cohort = Column(String(100), nullable=True)
-    start_date = Column(DateTime, nullable=True)
-    end_date = Column(DateTime, nullable=True)
-    status = Column(String(50), default="planned")  # "planned", "active", "completed", "evaluated"
-    effectiveness = Column(String(50), nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-
-class StudentInterventionGroup(Base):
-    """
-    Association table between students and intervention groups
-    """
-    __tablename__ = 'student_intervention_groups'
-    
-    id = Column(Integer, primary_key=True)
-    student_id = Column(Integer, ForeignKey('students.id'), nullable=False)
-    group_id = Column(Integer, ForeignKey('intervention_groups.id'), nullable=False)
-    individual_effectiveness = Column(String(50), nullable=True)
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
-    
-    # Relationships
-    student = relationship("Student")
-    group = relationship("InterventionGroup")

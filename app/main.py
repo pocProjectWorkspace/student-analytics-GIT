@@ -13,14 +13,14 @@ from app.database.database import engine, get_db
 from app.database.models import Base
 from app.database.init_db import init_db
 
-# Create FastAPI application (⚠️ Move this line UP before applying middleware)
+# Create FastAPI application
 app = FastAPI(
     title="Student Analytics PoC",
     description="A proof of concept for AI-driven student analytics and intervention recommendations",
     version="0.1.0"
 )
 
-# ✅ Apply CORS middleware AFTER app is instantiated
+# Apply CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Or restrict to ["http://localhost:5173"]
@@ -32,7 +32,7 @@ app.add_middleware(
 # Initialize database tables
 init_db()
 
-# Include API routes
+# Include API routes - ONLY NEED THIS ONE LINE
 app.include_router(api_router, prefix="/api")
 
 # Mount static files

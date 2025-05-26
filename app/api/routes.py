@@ -1,515 +1,430 @@
-# app/api/routes.py
-from fastapi import APIRouter, HTTPException, Depends, Query, Path, FastAPI
+# app/api/routes.py - Complete Corrected Version
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from fastapi.encoders import jsonable_encoder
-from app.api.models import CohortStatistics as CohortStatsModel
 from datetime import datetime
+import pandas as pd
+from io import BytesIO
 
-# Fix the import here - change from app.database.db to app.database.database
+# Database imports
 from app.database.database import get_db
-from app.database import schemas, models
+from app.database import models
 from app.api.models import (
     StudentData, StudentsListResponse, CohortStatsResponse,
-    StudentResponse, ProgressAnalysis, RiskPrediction
-)
-from app.engine.analytics import (
-    StudentAnalyticsEngine, 
-    ProgressTracker, 
-    PredictiveAnalytics
+    StudentResponse, ProgressAnalysis, RiskPrediction,
+    CohortStatistics as CohortStatsModel,
+    PassAnalysis, Cat4Analysis, AcademicAnalysis
 )
 
 router = APIRouter()
 
-# Define setup_cors function but we won't use it directly 
-# since we're configuring CORS in main.py
-def setup_cors(app: FastAPI):
-    from fastapi.middleware.cors import CORSMiddleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=".*",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        )
-
-@router.get("/students", response_model=StudentsListResponse)
-async def get_students(
-    grade: Optional[int] = None,
-    risk_level: Optional[str] = None,
-    fragile_status: Optional[bool] = None,
-    has_pass_risk: Optional[bool] = None,
-    has_cat4_weakness: Optional[bool] = None,
-    has_academic_weakness: Optional[bool] = None,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    Get list of students with optional filtering
-    """
-    # Base query
-    query = db.query(models.Student)
-    
-    # Apply filters
-    if grade is not None:
-        query = query.filter(models.Student.grade == grade)
-    
-    if risk_level is not None:
-        # This requires a join with the latest risk prediction
-        query = query.join(
-            models.RiskPrediction,
-            models.Student.id == models.RiskPrediction.student_id
-        ).filter(models.RiskPrediction.risk_level == risk_level)
-    
-    if fragile_status is not None:
-        query = query.filter(models.Student.is_fragile_learner == fragile_status)
-    
-    # More complex filters (these will be slower)
-    if has_pass_risk is not None:
-        if has_pass_risk:
-            # Students with PASS risk factors
-            query = query.join(
-                models.PassAssessment,
-                models.Student.id == models.PassAssessment.student_id
-            ).join(
-                models.PassFactor,
-                models.PassAssessment.id == models.PassFactor.assessment_id
-            ).filter(models.PassFactor.level == "at-risk")
-        else:
-            # Students without PASS risk factors
-            # This is more complex - we need a subquery
-            risk_student_ids = db.query(models.Student.id).join(
-                models.PassAssessment,
-                models.Student.id == models.PassAssessment.student_id
-            ).join(
-                models.PassFactor,
-                models.PassAssessment.id == models.PassFactor.assessment_id
-            ).filter(models.PassFactor.level == "at-risk").subquery()
+# UPLOAD ROUTES
+@router.post("/upload/asset")
+async def upload_asset_data(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload Asset (academic performance) data"""
+    try:
+        print(f"Processing Asset file: {file.filename}")
+        contents = await file.read()
+        df = pd.read_excel(BytesIO(contents))
+        print("Asset columns:", df.columns.tolist())
+        
+        students_processed = 0
+        for index, row in df.iterrows():
+            # Use actual Excel column names
+            student_id = str(row.get('Student ID', ''))
+            name = str(row.get('Name', ''))
+            grade = row.get('Grade', 9)
+            section = str(row.get('Section', ''))
             
-            query = query.filter(models.Student.id.notin_(risk_student_ids))
-    
-     
-    # Execute query with pagination
-    students_db = query.offset(skip).limit(limit).all()
-    total_count = query.count()
-    
-    # Process students through analytics engine to get full data
-    analytics_engine = StudentAnalyticsEngine()
-    enriched_students = []
-    
-    for student_db in students_db:
-        # Get the enriched student data
-        student_data = analytics_engine.process_student(student_db)
+            if not student_id or student_id == 'nan':
+                continue
+                
+            # Create or find student
+            student_db = db.query(models.Student).filter(
+                models.Student.student_id == student_id
+            ).first()
+            
+            if not student_db:
+                student_db = models.Student(
+                    student_id=student_id,
+                    name=name,
+                    grade=int(grade) if pd.notna(grade) else 9,
+                    section=section if section != 'nan' else None
+                )
+                db.add(student_db)
+                db.flush()
+                print(f"Created student: {student_id} - {name}")
+            
+            # Create AcademicAssessment
+            existing_assessment = db.query(models.AcademicAssessment).filter(
+                models.AcademicAssessment.student_id == student_db.id
+            ).first()
+            
+            if not existing_assessment:
+                academic_assessment = models.AcademicAssessment(
+                    student_id=student_db.id,
+                    term="Current"
+                )
+                db.add(academic_assessment)
+                db.flush()
+                
+                # Add subjects based on actual Excel columns
+                subjects = [
+                    {
+                        'name': 'English',
+                        'internal_marks': row.get('Internal Marks - English', 0),
+                        'internal_stanine': row.get('Internal Stanine - English', 0),
+                        'asset_stanine': row.get('Asset Stanine - English', 0),
+                        'comparison': row.get('Compare', '')
+                    },
+                    {
+                        'name': 'Maths',
+                        'internal_marks': row.get('Internal Marks - Maths', 0),
+                        'internal_stanine': row.get('Internal Stanine - Maths', 0),
+                        'asset_stanine': row.get('Asset Stanine- Maths', 0),
+                        'comparison': row.get('Compare.1', '')
+                    },
+                    {
+                        'name': 'Science',
+                        'internal_marks': row.get('Internal Marks - Science', 0),
+                        'internal_stanine': row.get('Internal Stanine - Science', 0),
+                        'asset_stanine': row.get('Asset Stanine - Science', 0),
+                        'comparison': row.get('Compare.2', '')
+                    }
+                ]
+                
+                for subject in subjects:
+                    if pd.notna(subject['internal_marks']) and float(subject['internal_marks']) > 0:
+                        stanine = float(subject['internal_stanine']) if pd.notna(subject['internal_stanine']) else 5
+                        
+                        # Determine level
+                        if stanine <= 3:
+                            level = "weakness"
+                        elif stanine >= 7:
+                            level = "strength"
+                        else:
+                            level = "balanced"
+                            
+                        academic_subject = models.AcademicSubject(
+                            assessment_id=academic_assessment.id,
+                            name=subject['name'],
+                            stanine=stanine,
+                            percentile=0,  # Not provided in Excel
+                            level=level,
+                            comparison=str(subject['comparison']) if pd.notna(subject['comparison']) else ""
+                        )
+                        db.add(academic_subject)
+                
+                students_processed += 1
         
-        # Add historical data analysis if available
-        progress_tracker = ProgressTracker()
-        previous_data = get_latest_historical_data(student_db.id, db)
-        if previous_data:
-            progress_analysis = progress_tracker.track_progress(student_data, previous_data)
-            student_data.progressAnalysis = progress_analysis
+        db.commit()
+        print(f"Asset processing complete: {students_processed} students")
+        return {"message": f"Asset data processed! {students_processed} students."}
         
-        # Add risk prediction
-        predictive_analytics = PredictiveAnalytics()
-        historical_data = get_historical_data(student_db.id, db)
-        risk_prediction = predictive_analytics.predict_risk(student_data, historical_data)
-        student_data.riskPrediction = risk_prediction
+    except Exception as e:
+        db.rollback()
+        print(f"Asset error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/upload/cat4")
+async def upload_cat4_data(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload CAT4 data"""
+    try:
+        print(f"Processing CAT4 file: {file.filename}")
+        contents = await file.read()
+        df = pd.read_excel(BytesIO(contents))
+        print("CAT4 columns:", df.columns.tolist())
         
-        enriched_students.append(student_data)
-    
-    return StudentsListResponse(
-        students=enriched_students,
-        total_count=total_count
-    )
+        students_processed = 0
+        for index, row in df.iterrows():
+            student_id = str(row.get('Student ID', ''))
+            
+            if not student_id or student_id == 'nan':
+                continue
+                
+            student_db = db.query(models.Student).filter(
+                models.Student.student_id == student_id
+            ).first()
+            
+            if not student_db:
+                print(f"Student {student_id} not found for CAT4 data")
+                continue
+                
+            existing = db.query(models.CAT4Assessment).filter(
+                models.CAT4Assessment.student_id == student_db.id
+            ).first()
+            
+            if not existing:
+                # Get stanine values from Excel
+                verbal_stanine = row.get('Verbal SAS', 0)
+                quantitative_stanine = row.get('Quantitative SAS', 0) 
+                nonverbal_stanine = row.get('Non-verbal SAS', 0)
+                spatial_stanine = row.get('Spatial SAS', 0)
+                mean_sas = row.get('Mean SAS', 0)
+                
+                # Calculate if fragile learner (stanine <= 3 in multiple areas)
+                stanines = [verbal_stanine, quantitative_stanine, nonverbal_stanine, spatial_stanine]
+                weak_areas = sum(1 for s in stanines if pd.notna(s) and float(s) <= 3)
+                is_fragile = weak_areas >= 2
+                
+                cat4_assessment = models.CAT4Assessment(
+                    student_id=student_db.id,
+                    is_fragile_learner=is_fragile,
+                    average_stanine=float(mean_sas) if pd.notna(mean_sas) else 0
+                )
+                db.add(cat4_assessment)
+                db.flush()
+                
+                # Add domains
+                domains = [
+                    {
+                        'name': 'Verbal',
+                        'stanine': float(verbal_stanine) if pd.notna(verbal_stanine) else 0
+                    },
+                    {
+                        'name': 'Quantitative', 
+                        'stanine': float(quantitative_stanine) if pd.notna(quantitative_stanine) else 0
+                    },
+                    {
+                        'name': 'Non-verbal',
+                        'stanine': float(nonverbal_stanine) if pd.notna(nonverbal_stanine) else 0
+                    },
+                    {
+                        'name': 'Spatial',
+                        'stanine': float(spatial_stanine) if pd.notna(spatial_stanine) else 0
+                    }
+                ]
+                
+                for domain in domains:
+                    if domain['stanine'] > 0:
+                        # Determine level
+                        if domain['stanine'] <= 3:
+                            level = "weakness"
+                        elif domain['stanine'] >= 7:
+                            level = "strength"
+                        else:
+                            level = "balanced"
+                            
+                        cat4_domain = models.CAT4Domain(
+                            assessment_id=cat4_assessment.id,
+                            name=domain['name'],
+                            stanine=domain['stanine'],
+                            level=level
+                        )
+                        db.add(cat4_domain)
+                
+                # Update student fragile learner status
+                student_db.is_fragile_learner = is_fragile
+                students_processed += 1
+        
+        db.commit()
+        print(f"CAT4 processing complete: {students_processed} students")
+        return {"message": f"CAT4 data processed! {students_processed} students."}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"CAT4 error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/students/{student_id}", response_model=StudentResponse)
-async def get_student(
-    student_id: str = Path(..., description="The student ID"),
-    include_history: bool = Query(False, description="Whether to include historical data"),
-    db: Session = Depends(get_db)
-):
-    """
-    Get detailed data for a specific student
-    """
-    # Find the student in database
-    student_db = db.query(models.Student).filter(models.Student.student_id == student_id).first()
-    if not student_db:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    # Process student data through analytics engine
-    analytics_engine = StudentAnalyticsEngine()
-    student_data = analytics_engine.process_student(student_db)
-    
-    # Add historical data analysis if available
-    progress_tracker = ProgressTracker()
-    previous_data = get_latest_historical_data(student_db.id, db)
-    if previous_data:
-        progress_analysis = progress_tracker.track_progress(student_data, previous_data)
-        student_data.progressAnalysis = progress_analysis
-    
-    # Add risk prediction
-    predictive_analytics = PredictiveAnalytics()
-    historical_data = get_historical_data(student_db.id, db)
-    risk_prediction = predictive_analytics.predict_risk(student_data, historical_data)
-    student_data.riskPrediction = risk_prediction
-    
-    # Return the response
-    return StudentResponse(student=student_data)
+@router.post("/upload/pass")
+async def upload_pass_data(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Upload PASS data"""
+    try:
+        print(f"Processing PASS file: {file.filename}")
+        contents = await file.read()
+        df = pd.read_excel(BytesIO(contents))
+        print("PASS columns:", df.columns.tolist())
+        
+        students_processed = 0
+        for index, row in df.iterrows():
+            student_id = str(row.get('Student ID', ''))
+            
+            if not student_id or student_id == 'nan':
+                continue
+                
+            student_db = db.query(models.Student).filter(
+                models.Student.student_id == student_id
+            ).first()
+            
+            if not student_db:
+                print(f"Student {student_id} not found for PASS data")
+                continue
+                
+            existing = db.query(models.PassAssessment).filter(
+                models.PassAssessment.student_id == student_db.id
+            ).first()
+            
+            if not existing:
+                # Get percentile values from actual Excel columns
+                perceived_learning = row.get('Perceived learning capability', 0)
+                self_regard = row.get('Self-regard as a learner', 0)
+                preparedness = row.get('Preparedness for learning', 0)
+                general_work_ethic = row.get('General work ethic', 0)
+                confidence = row.get('Confidence in learning', 0)
+                feelings = row.get('Feelings about school', 0)
+                attitudes_teachers = row.get('Attitudes to teachers', 0)
+                attitudes_attendance = row.get('Attitudes to attendance', 0)
+                response_curriculum = row.get('Response to curriculum demands', 0)
+                
+                # Calculate average
+                values = [perceived_learning, self_regard, preparedness, general_work_ethic, 
+                         confidence, feelings, attitudes_teachers, attitudes_attendance, response_curriculum]
+                valid_values = [float(v) for v in values if pd.notna(v) and v != 0]
+                avg_percentile = sum(valid_values) / len(valid_values) if valid_values else 0
+                
+                pass_assessment = models.PassAssessment(
+                    student_id=student_db.id,
+                    average_percentile=avg_percentile
+                )
+                db.add(pass_assessment)
+                db.flush()
+                
+                # Add factors
+                factors = [
+                    {'name': 'Perceived Learning Capability', 'percentile': perceived_learning},
+                    {'name': 'Self-regard as a Learner', 'percentile': self_regard},
+                    {'name': 'Preparedness for Learning', 'percentile': preparedness},
+                    {'name': 'General Work Ethic', 'percentile': general_work_ethic},
+                    {'name': 'Confidence in Learning', 'percentile': confidence},
+                    {'name': 'Feelings about School', 'percentile': feelings},
+                    {'name': 'Attitudes to Teachers', 'percentile': attitudes_teachers},
+                    {'name': 'Attitudes to Attendance', 'percentile': attitudes_attendance},
+                    {'name': 'Response to Curriculum', 'percentile': response_curriculum}
+                ]
+                
+                for factor in factors:
+                    if pd.notna(factor['percentile']) and factor['percentile'] > 0:
+                        percentile = float(factor['percentile'])
+                        
+                        # Determine level
+                        if percentile <= 25:
+                            level = "at-risk"
+                        elif percentile >= 75:
+                            level = "strength"
+                        else:
+                            level = "balanced"
+                            
+                        pass_factor = models.PassFactor(
+                            assessment_id=pass_assessment.id,
+                            name=factor['name'],
+                            percentile=percentile,
+                            level=level
+                        )
+                        db.add(pass_factor)
+                
+                students_processed += 1
+        
+        db.commit()
+        print(f"PASS processing complete: {students_processed} students")
+        return {"message": f"PASS data processed! {students_processed} students."}
+        
+    except Exception as e:
+        db.rollback()
+        print(f"PASS error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=str(e))
 
+# API ROUTES
+@router.get("/students", response_model=StudentsListResponse)
+async def get_students(db: Session = Depends(get_db)):
+    """Get all students"""
+    try:
+        students_db = db.query(models.Student).limit(100).all()
+        print(f"Found {len(students_db)} students in database")
+        
+        students_list = []
+        for student_db in students_db:
+            # Create default analysis objects
+            pass_analysis = PassAnalysis(available=False)
+            cat4_analysis = Cat4Analysis(available=False)
+            academic_analysis = AcademicAnalysis(available=False)
+            
+            student_data = StudentData(
+                student_id=student_db.student_id,
+                name=student_db.name,
+                grade=student_db.grade,
+                section=student_db.section,
+                is_fragile_learner=student_db.is_fragile_learner or False,
+                pass_analysis=pass_analysis,
+                cat4_analysis=cat4_analysis,
+                academic_analysis=academic_analysis,
+                interventions=[],
+                compoundInterventions=[],
+                progressAnalysis=None,
+                riskPrediction=None
+            )
+            students_list.append(student_data)
+        
+        return StudentsListResponse(
+            students=students_list,
+            total_count=len(students_list)
+        )
+        
+    except Exception as e:
+        print(f"Error getting students: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/api/stats/cohort", response_model=CohortStatsResponse)
+@router.get("/stats/cohort", response_model=CohortStatsResponse)
 def get_cohort_stats(db: Session = Depends(get_db)):
-    stats_db = db.query(CohortStatistics).first()
-    if not stats_db:
-        # Optionally handle null DB case
-        raise HTTPException(status_code=404, detail="No cohort stats found.")
-
-    raw_data = jsonable_encoder(stats_db)
-
-    # Print for debug
-    print("DEBUG: stats_db raw:", raw_data)
-
-    # Inject default values for required missing fields
-    default_fields = {
-        "riskLevels": {},
-        "fragileLearnersCount": 0,
-        "passRiskFactors": {},
-        "cat4WeaknessAreas": {},
-        "academicWeaknesses": {},
-        "interventionsByDomain": {}
-    }
-
-    for field, default in default_fields.items():
-        if field not in raw_data or raw_data[field] is None:
-            raw_data[field] = default
-
-    validated_stats = CohortStatsModel(**raw_data)
-    return CohortStatsResponse(stats=validated_stats)
-    
-    # Otherwise, generate new stats
-    stats = generate_cohort_stats(db, grade)
-    
-    # Save the stats to database for caching
-    new_stats_db = models.CohortStatistics(
-        total_students=stats.total_students,
-        grades=stats.grades,
-        risk_levels=stats.riskLevels,
-        fragile_learners_count=stats.fragileLearnersCount,
-        pass_risk_factors=stats.passRiskFactors,
-        cat4_weakness_areas=stats.cat4WeaknessAreas,
-        academic_weaknesses=stats.academicWeaknesses,
-        interventions_by_domain=stats.interventionsByDomain,
-        grade_distribution=stats.grade_distribution,
-        risk_distribution=stats.risk_distribution,
-        pass_risk_distribution=stats.pass_risk_distribution,
-        cat4_weakness_distribution=stats.cat4_weakness_distribution,
-        academic_weakness_distribution=stats.academic_weakness_distribution,
-        intervention_distribution=stats.intervention_distribution
-    )
-    db.add(new_stats_db)
-    db.commit()
-    
-    stats = CohortStatsModel(**jsonable_encoder(stats_db))
-    return CohortStatsResponse(stats=stats)
-
-@router.post("/students/{student_id}/interventions", response_model=StudentResponse)
-async def generate_interventions(
-    student_id: str = Path(..., description="The student ID"),
-    db: Session = Depends(get_db)
-):
-    """
-    Generate intervention recommendations for a student
-    """
-    # Find the student in database
-    student_db = db.query(models.Student).filter(models.Student.student_id == student_id).first()
-    if not student_db:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    # Process student data through analytics engine
-    analytics_engine = StudentAnalyticsEngine()
-    student_data = analytics_engine.process_student(student_db)
-    
-    # Generate interventions
-    pass_analysis = student_data.pass_analysis if student_data.pass_analysis.available else None
-    cat4_analysis = student_data.cat4_analysis if student_data.cat4_analysis.available else None
-    academic_analysis = student_data.academic_analysis if student_data.academic_analysis.available else None
-    is_fragile_learner = student_data.is_fragile_learner
-    
-    # Generate standard interventions
-    interventions = analytics_engine.generateInterventions(
-        pass_analysis, cat4_analysis, academic_analysis, is_fragile_learner
-    )
-    
-    # Generate compound interventions
-    compound_interventions = analytics_engine.generateCompoundInterventions(
-        pass_analysis, cat4_analysis, academic_analysis, is_fragile_learner
-    )
-    
-    # Update student data
-    student_data.interventions = interventions
-    student_data.compoundInterventions = compound_interventions
-    
-    # Save interventions to database
-    for intervention in interventions:
-        # Check if intervention already exists
-        existing = db.query(models.Intervention).filter(
-            models.Intervention.student_id == student_db.id,
-            models.Intervention.title == intervention.title,
-            models.Intervention.domain == intervention.domain,
-            models.Intervention.factor == intervention.factor
-        ).first()
+    """Get cohort statistics"""
+    try:
+        student_count = db.query(models.Student).count()
+        print(f"Found {student_count} students in database")
         
-        if not existing:
-            new_intervention = models.Intervention(
-                student_id=student_db.id,
-                domain=intervention.domain,
-                factor=intervention.factor,
-                title=intervention.title,
-                description=intervention.description,
-                priority=intervention.priority,
-                is_compound=False
-            )
-            db.add(new_intervention)
-    
-    # Save compound interventions to database
-    for intervention in compound_interventions:
-        # Check if intervention already exists
-        existing = db.query(models.Intervention).filter(
-            models.Intervention.student_id == student_db.id,
-            models.Intervention.title == intervention.title,
-            models.Intervention.domain == intervention.domain,
-            models.Intervention.factor == intervention.factor
-        ).first()
+        # Get basic stats
+        students = db.query(models.Student).all()
         
-        if not existing:
-            new_intervention = models.Intervention(
-                student_id=student_db.id,
-                domain=intervention.domain,
-                factor=intervention.factor,
-                title=intervention.title,
-                description=intervention.description,
-                priority=intervention.priority,
-                is_compound=True,
-                impact=intervention.impact
-            )
-            db.add(new_intervention)
-    
-    db.commit()
-    
-    return StudentResponse(student=student_data)
-
-@router.post("/students/{student_id}/risk-prediction", response_model=RiskPrediction)
-async def generate_risk_prediction(
-    student_id: str = Path(..., description="The student ID"),
-    db: Session = Depends(get_db)
-):
-    """
-    Generate risk prediction for a student
-    """
-    # Find the student in database
-    student_db = db.query(models.Student).filter(models.Student.student_id == student_id).first()
-    if not student_db:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    # Process student data through analytics engine
-    analytics_engine = StudentAnalyticsEngine()
-    student_data = analytics_engine.process_student(student_db)
-    
-    # Get historical data
-    historical_data = get_historical_data(student_db.id, db)
-    
-    # Generate risk prediction
-    predictive_analytics = PredictiveAnalytics()
-    risk_prediction = predictive_analytics.predict_risk(student_data, historical_data)
-    
-    # Save prediction to database
-    new_prediction = models.RiskPrediction(
-        student_id=student_db.id,
-        overall_risk_score=risk_prediction.overall_risk_score,
-        risk_level=risk_prediction.risk_level,
-        risk_factors=risk_prediction.risk_factors,
-        early_indicators=risk_prediction.early_indicators,
-        trend_analysis=risk_prediction.trend_analysis,
-        time_to_intervention=risk_prediction.time_to_intervention,
-        confidence=risk_prediction.confidence,
-        recommendations=risk_prediction.recommendations
-    )
-    db.add(new_prediction)
-    db.commit()
-    
-    return risk_prediction
-
-@router.post("/students/{student_id}/progress-analysis", response_model=ProgressAnalysis)
-async def generate_progress_analysis(
-    student_id: str = Path(..., description="The student ID"),
-    db: Session = Depends(get_db)
-):
-    """
-    Generate progress analysis for a student
-    """
-    # Find the student in database
-    student_db = db.query(models.Student).filter(models.Student.student_id == student_id).first()
-    if not student_db:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    # Process student data through analytics engine
-    analytics_engine = StudentAnalyticsEngine()
-    student_data = analytics_engine.process_student(student_db)
-    
-    # Get previous data snapshot
-    previous_data = get_latest_historical_data(student_db.id, db)
-    if not previous_data:
-        raise HTTPException(status_code=404, detail="No previous data available for progress analysis")
-    
-    # Generate progress analysis
-    progress_tracker = ProgressTracker()
-    progress_analysis = progress_tracker.track_progress(student_data, previous_data)
-    
-    # Save analysis to database
-    new_analysis = models.ProgressAnalysis(
-        student_id=student_db.id,
-        has_baseline=progress_analysis.hasBaseline,
-        pass_analysis=progress_analysis.pass_analysis,
-        cat4_analysis=progress_analysis.cat4_analysis,
-        academic_analysis=progress_analysis.academic_analysis,
-        intervention_effectiveness=progress_analysis.intervention_effectiveness,
-        improvement_areas=progress_analysis.improvement_areas,
-        concern_areas=progress_analysis.concern_areas,
-        summary=progress_analysis.summary
-    )
-    db.add(new_analysis)
-    db.commit()
-    
-    return progress_analysis
-
-@router.post("/students/{student_id}/save-snapshot")
-async def save_historical_snapshot(
-    student_id: str = Path(..., description="The student ID"),
-    reason: str = Query("Regular Update", description="Reason for taking snapshot"),
-    db: Session = Depends(get_db)
-):
-    """
-    Save a snapshot of current student data for historical tracking
-    """
-    # Find the student in database
-    student_db = db.query(models.Student).filter(models.Student.student_id == student_id).first()
-    if not student_db:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    # Process student data through analytics engine
-    analytics_engine = StudentAnalyticsEngine()
-    student_data = analytics_engine.process_student(student_db)
-    
-    # Extract data components
-    pass_data = student_data.pass_analysis if student_data.pass_analysis.available else None
-    cat4_data = student_data.cat4_analysis if student_data.cat4_analysis.available else None
-    academic_data = student_data.academic_analysis if student_data.academic_analysis.available else None
-    interventions_data = student_data.interventions if student_data.interventions else []
-    
-    # Save snapshot to database
-    new_snapshot = models.HistoricalStudentSnapshot(
-        student_id=student_db.id,
-        snapshot_reason=reason,
-        student_data=student_data.dict(),
-        pass_data=pass_data.dict() if pass_data else None,
-        cat4_data=cat4_data.dict() if cat4_data else None,
-        academic_data=academic_data.dict() if academic_data else None,
-        interventions_data=[i.dict() for i in interventions_data]
-    )
-    db.add(new_snapshot)
-    db.commit()
-    
-    return {"message": "Snapshot saved successfully"}
-
-# Helper Functions
-
-def get_latest_historical_data(student_id, db):
-    """
-    Get the latest historical snapshot for a student
-    """
-    snapshot = db.query(models.HistoricalStudentSnapshot).filter(
-        models.HistoricalStudentSnapshot.student_id == student_id
-    ).order_by(models.HistoricalStudentSnapshot.snapshot_date.desc()).first()
-    
-    if snapshot:
-        return snapshot.student_data
-    
-    return None
-
-def get_historical_data(student_id, db, limit=5):
-    """
-    Get historical snapshots for a student
-    """
-    snapshots = db.query(models.HistoricalStudentSnapshot).filter(
-        models.HistoricalStudentSnapshot.student_id == student_id
-    ).order_by(models.HistoricalStudentSnapshot.snapshot_date.desc()).limit(limit).all()
-    
-    return [snapshot.student_data for snapshot in snapshots]
-
-def generate_cohort_stats(db, grade=None):
-    """
-    Generate comprehensive cohort statistics
-    """
-    # This would be a complex function that queries the database
-    # and calculates statistics for the entire cohort or a specific grade
-    
-    # For the sake of brevity, we're not implementing the full function here
-    # but it would query each table and aggregate the data as needed
-    
-    # Example of the basic structure:
-    
-    # Base query for students
-    query = db.query(models.Student)
-    if grade is not None:
-        query = query.filter(models.Student.grade == grade)
-    
-    students = query.all()
-    
-    # Calculate various statistics
-    total_students = len(students)
-    
-    # Grade distribution
-    grades = {}
-    for student in students:
-        if student.grade in grades:
-            grades[student.grade] += 1
-        else:
-            grades[student.grade] = 1
-    
-    # Risk level distribution (more complex, would use joins)
-    risk_levels = {
-        "high": 0,
-        "medium": 0,
-        "borderline": 0,
-        "low": 0
-    }
-    
-    # Get latest risk prediction for each student
-    for student in students:
-        latest_prediction = db.query(models.RiskPrediction).filter(
-            models.RiskPrediction.student_id == student.id
-        ).order_by(models.RiskPrediction.prediction_date.desc()).first()
+        # Grade distribution
+        grades = {}
+        fragile_count = 0
+        for student in students:
+            grade_key = str(student.grade)
+            grades[grade_key] = grades.get(grade_key, 0) + 1
+            if student.is_fragile_learner:
+                fragile_count += 1
         
-        if latest_prediction and latest_prediction.risk_level in risk_levels:
-            risk_levels[latest_prediction.risk_level] += 1
-    
-    # Count fragile learners
-    fragile_learners_count = sum(1 for student in students if student.is_fragile_learner)
-    
-    # The rest of the stats would be calculated in a similar manner
-    
-    # Create the stats object
-    from app.api.models import CohortStatistics
-    
-    stats = CohortStatistics(
-        total_students=total_students,
-        grades=grades,
-        riskLevels=risk_levels,
-        fragileLearnersCount=fragile_learners_count,
-        passRiskFactors={},  # Would be populated in the full implementation
-        cat4WeaknessAreas={},  # Would be populated in the full implementation
-        academicWeaknesses={},  # Would be populated in the full implementation
-        interventionsByDomain={}  # Would be populated in the full implementation
-    )
-    
-    return stats
+        # Convert grade keys to integers for frontend
+        grades_int = {}
+        for grade_str, count in grades.items():
+            try:
+                grades_int[int(grade_str)] = count
+            except:
+                grades_int[grade_str] = count
+        
+        stats = CohortStatsModel(
+            total_students=student_count,
+            grades=grades_int,
+            riskLevels={"high": 0, "medium": 0, "borderline": 0, "low": 0},
+            fragileLearnersCount=fragile_count,
+            passRiskFactors={},
+            cat4WeaknessAreas={},
+            academicWeaknesses={},
+            interventionsByDomain={}
+        )
+        
+        return CohortStatsResponse(stats=stats)
+        
+    except Exception as e:
+        print(f"Error getting cohort stats: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return empty stats on error
+        default_stats = CohortStatsModel(
+            total_students=0,
+            grades={},
+            riskLevels={},
+            fragileLearnersCount=0,
+            passRiskFactors={},
+            cat4WeaknessAreas={},
+            academicWeaknesses={},
+            interventionsByDomain={}
+        )
+        return CohortStatsResponse(stats=default_stats)
